@@ -9,12 +9,14 @@
     #consoleSelect, #romInput { margin: 16px; }
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
+    #hint { margin-bottom: 1em; }
+    #snes-container { display: flex; justify-content: center; }
   </style>
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
-  <!-- SNES9x JS core (via jsdelivr) -->
-  <script src="https://cdn.jsdelivr.net/gh/alinz/snes9x-js@master/dist/snes9x.js"></script>
+  <!-- snes-embed JS SNES emulator -->
+  <script src="https://cdn.jsdelivr.net/npm/snes-embed/lib/snes-embed.js"></script>
 </head>
 <body>
   <h1>Emulator: Game Boy & SNES</h1>
@@ -25,29 +27,43 @@
   </select>
   <br>
   <input type="file" id="romInput" accept=".gb,.sfc,.smc">
-  <p id="hint">Upload a .gb (Game Boy) or .sfc/.smc (SNES) ROM file to start playing!</p>
-  
+  <p id="hint">
+    <b>Instructions:</b><br>
+    1. Select SNES and upload your legally-owned SNES ROM (e.g., Super Mario World: <code>.sfc</code> or <code>.smc</code>).<br>
+    2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
+    <i>No games are included on this page. Please use your own ROM files.</i>
+  </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
-  <canvas id="snes" width="256" height="224"></canvas>
-
+  <div id="snes-container" style="display:none;">
+    <div id="snes"></div>
+  </div>
   <script>
     let gameboy = null;
     let snes = null;
     const gameboyCanvas = document.getElementById('gameboy');
-    const snesCanvas = document.getElementById('snes');
+    const snesContainer = document.getElementById('snes-container');
+    const snesDiv = document.getElementById('snes');
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
 
     function showConsole(consoleName) {
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
-      snesCanvas.style.display = (consoleName === 'snes') ? 'block' : 'none';
+      snesContainer.style.display = (consoleName === 'snes') ? 'flex' : 'none';
       if (consoleName === 'gameboy') {
         romInput.accept = ".gb";
-        hint.textContent = "Upload a .gb ROM file to start playing!";
+        hint.innerHTML = `
+          <b>Instructions:</b><br>
+          1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
+          <i>No games are included on this page. Please use your own ROM files.</i>
+        `;
       } else {
         romInput.accept = ".sfc,.smc";
-        hint.textContent = "Upload a .sfc or .smc SNES ROM file to start playing!";
+        hint.innerHTML = `
+          <b>Instructions:</b><br>
+          1. Select "SNES" and upload your legally-owned SNES ROM (e.g., Super Mario World: <code>.sfc</code> or <code>.smc</code>).<br>
+          <i>No games are included on this page. Please use your own ROM files.</i>
+        `;
       }
     }
 
@@ -58,12 +74,16 @@
     }
 
     function startSnesEmulator(romBuffer) {
-      if (snes) {
-        snes.stop();
-        snes = null;
+      // Remove previous emulator if present
+      snesDiv.innerHTML = "";
+      if (window.snesEmbed) {
+        window.snesEmbed({
+          element: snesDiv,
+          romBuffer: romBuffer
+        });
+      } else {
+        alert('SNES emulator failed to load.');
       }
-      snes = new Snes9x(snesCanvas, romBuffer);
-      snes.start();
     }
 
     romInput.addEventListener('change', function(e){
@@ -85,6 +105,11 @@
       showConsole(consoleSelect.value);
     });
 
+    // Initialize with Game Boy selected
+    showConsole('gameboy');
+  </script>
+</body>
+</html>
     // Initialize with Game Boy selected
     showConsole('gameboy');
   </script>
