@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Game Boy Emulator Online</title>
+  <style>
+    body { background: #222; color: #fff; text-align: center; }
+    #gameboy { display: block; margin: 20px auto; }
+    #romInput { margin-top: 20px; }
+  </style>
+  <!-- GameBoy-Online core -->
+  <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
+  <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
+</head>
+<body>
+  <h1>Game Boy Emulator</h1>
+  <canvas id="gameboy" width="160" height="144"></canvas>
+  <br>
+  <input type="file" id="romInput" accept=".gb">
+  <p>Upload a .gb ROM file to start playing!</p>
+  <script>
+    let gameboy = null;
+    const canvas = document.getElementById('gameboy');
+    const ctx = canvas.getContext('2d');
+
+    function startEmulator(romBuffer) {
+      if (gameboy) gameboy.stop();
+      gameboy = new GameBoyCore(canvas, romBuffer);
+      gameboy.start();
+    }
+
+    document.getElementById('romInput').addEventListener('change', function(e){
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function() {
+        startEmulator(new Uint8Array(reader.result));
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  </script>
+</body>
+</html>
