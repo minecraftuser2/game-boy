@@ -2,42 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Game Boy Emulator Online</title>
+  <title>Game Boy & SNES Emulator Online</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
-    #gameboy { display: block; margin: 20px auto; }
-    #romInput { margin-top: 20px; }
+    #gameboy, #snes { display: none; margin: 20px auto; }
+    #consoleSelect, #romInput { margin: 16px; }
+    canvas { box-shadow: 0 0 10px #000; }
+    label { font-size: 1.2em; }
   </style>
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
+  <!-- SNES9x JS core (via jsdelivr) -->
+  <script src="https://cdn.jsdelivr.net/gh/alinz/snes9x-js@master/dist/snes9x.js"></script>
 </head>
 <body>
-  <h1>Game Boy Emulator</h1>
-  <canvas id="gameboy" width="160" height="144"></canvas>
+  <h1>Emulator: Game Boy & SNES</h1>
+  <label for="consoleSelect">Choose Console:</label>
+  <select id="consoleSelect">
+    <option value="gameboy">Game Boy</option>
+    <option value="snes">SNES</option>
+  </select>
   <br>
-  <input type="file" id="romInput" accept=".gb">
-  <p>Upload a .gb ROM file to start playing!</p>
+  <input type="file" id="romInput" accept=".gb,.sfc,.smc">
+  <p id="hint">Upload a .gb (Game Boy) or .sfc/.smc (SNES) ROM file to start playing!</p>
+  
+  <canvas id="gameboy" width="160" height="144"></canvas>
+  <canvas id="snes" width="256" height="224"></canvas>
+
   <script>
     let gameboy = null;
-    const canvas = document.getElementById('gameboy');
-    const ctx = canvas.getContext('2d');
+    let snes = null;
+    const gameboyCanvas = document.getElementById('gameboy');
+    const snesCanvas = document.getElementById('snes');
+    const consoleSelect = document.getElementById('consoleSelect');
+    const romInput = document.getElementById('romInput');
+    const hint = document.getElementById('hint');
 
-    function startEmulator(romBuffer) {
+    function showConsole(consoleName) {
+      gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
+      snesCanvas.style.display = (consoleName === 'snes') ? 'block' : 'none';
+      if (consoleName === 'gameboy') {
+        romInput.accept = ".gb";
+        hint.textContent = "Upload a .gb ROM file to start playing!";
+      } else {
+        romInput.accept = ".sfc,.smc";
+        hint.textContent = "Upload a .sfc or .smc SNES ROM file to start playing!";
+      }
+    }
+
+    function startGameBoyEmulator(romBuffer) {
       if (gameboy) gameboy.stop();
-      gameboy = new GameBoyCore(canvas, romBuffer);
+      gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
       gameboy.start();
     }
 
-    document.getElementById('romInput').addEventListener('change', function(e){
+    function startSnesEmulator(romBuffer) {
+      if (snes) {
+        snes.stop();
+        snes = null;
+      }
+      snes = new Snes9x(snesCanvas, romBuffer);
+      snes.start();
+    }
+
+    romInput.addEventListener('change', function(e){
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function() {
-        startEmulator(new Uint8Array(reader.result));
+        const arr = new Uint8Array(reader.result);
+        if (consoleSelect.value === 'gameboy') {
+          startGameBoyEmulator(arr);
+        } else {
+          startSnesEmulator(arr);
+        }
       };
       reader.readAsArrayBuffer(file);
     });
+
+    consoleSelect.addEventListener('change', function() {
+      showConsole(consoleSelect.value);
+    });
+
+    // Initialize with Game Boy selected
+    showConsole('gameboy');
   </script>
 </body>
 </html>
