@@ -30,6 +30,8 @@
     1. Select NES and upload your legally-owned NES ROM (<code>.nes</code>).<br>
     2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
     <i>No games are included on this page. Please use your own ROM files.</i>
+    <br>
+    <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
@@ -57,6 +59,8 @@
           <b>Instructions:</b><br>
           1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
+          <br>
+          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
         `;
       } else {
         romInput.accept = ".nes";
@@ -64,6 +68,8 @@
           <b>Instructions:</b><br>
           1. Select "NES" and upload your legally-owned NES ROM (<code>.nes</code>).<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
+          <br>
+          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
         `;
       }
     }
@@ -100,23 +106,17 @@
       nes = null;
     }
 
-    function nesLoop() {
-      if (!nesRunning || !nes) return;
-    nes.frame();
-      requestAnimationFrame(nesLoop);
-    }
-
-    // NES keyboard controls
+    // Keyboard controls for NES
     const JSNES_CONTROLLER = jsnes.Controller;
     const NES_KEYMAP = {
       88: JSNES_CONTROLLER.BUTTON_A,      // X
       90: JSNES_CONTROLLER.BUTTON_B,      // Z
       13: JSNES_CONTROLLER.BUTTON_START,  // Enter
       16: JSNES_CONTROLLER.BUTTON_SELECT, // Shift
-      38: JSNES_CONTROLLER.BUTTON_UP,     // Up
-      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down
-      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left
-      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right
+      38: JSNES_CONTROLLER.BUTTON_UP,     // Up arrow
+      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down arrow
+      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left arrow
+      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right arrow
     };
 
     window.addEventListener("keydown", event => {
@@ -135,6 +135,43 @@
         event.preventDefault();
       }
     });
+
+    // Gamepad state tracking to avoid repeated presses
+    let lastPadState = {};
+
+    function pollGamepad() {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = gamepads[0];
+      if (!gp || !nes) return;
+
+      const mapping = [
+        {btn: 0, ctrl: JSNES_CONTROLLER.BUTTON_A},      // A
+        {btn: 1, ctrl: JSNES_CONTROLLER.BUTTON_B},      // B
+        {btn: 8, ctrl: JSNES_CONTROLLER.BUTTON_SELECT}, // Select
+        {btn: 9, ctrl: JSNES_CONTROLLER.BUTTON_START},  // Start
+        {btn: 12, ctrl: JSNES_CONTROLLER.BUTTON_UP},    // D-Pad Up
+        {btn: 13, ctrl: JSNES_CONTROLLER.BUTTON_DOWN},  // D-Pad Down
+        {btn: 14, ctrl: JSNES_CONTROLLER.BUTTON_LEFT},  // D-Pad Left
+        {btn: 15, ctrl: JSNES_CONTROLLER.BUTTON_RIGHT}  // D-Pad Right
+      ];
+
+      mapping.forEach(map => {
+        const pressed = gp.buttons[map.btn] && gp.buttons[map.btn].pressed;
+        if (pressed && !lastPadState[map.btn]) {
+          nes.buttonDown(1, map.ctrl);
+        } else if (!pressed && lastPadState[map.btn]) {
+          nes.buttonUp(1, map.ctrl);
+        }
+        lastPadState[map.btn] = pressed;
+      });
+    }
+
+    function nesLoop() {
+      if (!nesRunning || !nes) return;
+      nes.frame();
+      pollGamepad();
+      requestAnimationFrame(nesLoop);
+    }
 
     // File handling
     romInput.addEventListener('change', function(e){
@@ -161,6 +198,11 @@
       if (consoleSelect.value === 'nes' && gameboy) gameboy.stop();
     });
 
+    // Initial console setup
+    showConsole('gameboy');
+  </script>
+</body>
+</html>
     // Initial console setup
     showConsole('gameboy');
   </script>
