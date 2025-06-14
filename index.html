@@ -54,11 +54,11 @@
     // DOS setup
     let dos = null;
     const dosDiv = document.getElementById('dosbox');
+    let lastIsoFile = null;
 
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
-    let lastIsoFile = null;
 
     function showConsole(consoleName) {
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
@@ -93,55 +93,7 @@
           <i>Your ISO will be available as D: in DOS. No games are included on this page.</i><br>
           <b>Controls:</b> Mouse and keyboard, just like classic DOS.
         `;
-        // Start plain DOS if not already run<!DOCTYPE html>
-        autolock: true
-      }).run(arrayBuffer).then(instance => {
-        dos = instance;
-      });
-    }
-
-    // File handling
-    romInput.addEventListener('change', function(e){
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function() {
-        const arr = new Uint8Array(reader.result);
-        if (consoleSelect.value === 'gameboy') {
-          startGameBoyEmulator(arr);
-          stopNesEmulator();
-          if (dos) { dos.stop(); dos = null; }
-        } else if (consoleSelect.value === 'nes') {
-          startNesEmulator(arr);
-          if (gameboy) gameboy.stop();
-          if (dos) { dos.stop(); dos = null; }
-        } else if (consoleSelect.value === 'dos') {
-          runDosFile(reader.result);
-          if (gameboy) gameboy.stop();
-          stopNesEmulator();
-        }
-      };
-      // DOS expects ArrayBuffer, others Uint8Array is fine
-      if (consoleSelect.value === 'dos')
-        reader.readAsArrayBuffer(file);
-      else
-        reader.readAsArrayBuffer(file);
-    });
-
-    consoleSelect.addEventListener('change', function() {
-      showConsole(consoleSelect.value);
-      // Stop all emulators when switching
-      if (consoleSelect.value !== 'gameboy' && gameboy) gameboy.stop();
-      if (consoleSelect.value !== 'nes') stopNesEmulator();
-      if (consoleSelect.value !== 'dos' && dos) { dos.stop(); dos = null; }
-    });
-
-    // Initial console setup
-    showConsole('gameboy');
-  </script>
-</body>
-</html>
-ning
+        // Start plain DOS if not already running, or if no children in dosDiv (fresh)
         if (!dos || !dosDiv.hasChildNodes()) {
           runDosPrompt();
         }
