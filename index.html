@@ -22,41 +22,35 @@
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
     <option value="nes">NES</option>
-    <option value="nds">NDS (Experimental)</option>
   </select>
   <br>
-  <input type="file" id="romInput" accept=".gb,.nes,.nds">
+  <input type="file" id="romInput" accept=".gb,.nes">
   <p id="hint">
     <b>Instructions:</b><br>
     1. Select NES and upload your legally-owned NES ROM (<code>.nes</code>).<br>
     2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
-    <i>No games are included on this page. Please use your own ROM files.</i><br>
-    <b>NDS support is experimental and not available in this demo.</b>
+    <i>No games are included on this page. Please use your own ROM files.</i>
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
-  <div id="nds-message" style="display:none;">
-    <p>
-      <b>Nintendo DS (NDS) emulation is not available in this simple HTML demo.</b><br>
-      Browser-based NDS emulation requires a complex setup with multiple files and WASM support.<br>
-      If you want to try it, see <a href="https://github.com/rafaelvcaetano/melonDS-web" style="color: #9cf;">melonDS-web</a>.<br>
-      Let me know if you want step-by-step help setting up a web-based NDS emulator!
-    </p>
-  </div>
   <script>
+    // Game Boy setup
     let gameboy = null;
-    let nes = null;
     const gameboyCanvas = document.getElementById('gameboy');
+    // NES setup
+    let nes = null;
+    let nesRunning = false;
     const nesCanvas = document.getElementById('nes');
+    const nesCtx = nesCanvas.getContext('2d');
+    let nesImageData = nesCtx.getImageData(0, 0, 256, 240);
+
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
-    const ndsMessage = document.getElementById('nds-message');
 
     function showConsole(consoleName) {
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
       nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
-      ndsMessage.style.display = (consoleName === 'nds') ? 'block' : 'none';
       if (consoleName === 'gameboy') {
         romInput.accept = ".gb";
         hint.innerHTML = `
@@ -64,20 +58,12 @@
           1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
         `;
-      } else if (consoleName === 'nes') {
+      } else {
         romInput.accept = ".nes";
         hint.innerHTML = `
           <b>Instructions:</b><br>
           1. Select "NES" and upload your legally-owned NES ROM (<code>.nes</code>).<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
-        `;
-      } else {
-        romInput.accept = "";
-        hint.innerHTML = `
-          <b>Nintendo DS (NDS) emulation is not available in this simple HTML demo.</b><br>
-          Browser-based NDS emulation requires a complex setup with multiple files and WASM support.<br>
-          If you want to try it, see <a href="https://github.com/rafaelvcaetano/melonDS-web" style="color: #9cf;">melonDS-web</a>.<br>
-          Let me know if you want step-by-step help setting up a web-based NDS emulator!
         `;
       }
     }
@@ -88,25 +74,69 @@
       gameboy.start();
     }
 
-    function startNesEmulator(romBuffer) {
-      if (nes) nes.stop && nes.stop();
-      nes = new jsnes.NES({
-        onFrame: function(frameBuffer){
-          const ctx = nesCanvas.getContext('2d');
-          const imageData = ctx.getImageData(0, 0, 256, 240);
-          for (let i = 0; i < frameBuffer.length; i++) {
-            imageData.data[i * 4 + 0] = (frameBuffer[i] >> 16) & 0xFF;
-            imageData.data[i * 4 + 1] = (frameBuffer[i] >> 8) & 0xFF;
-            imageData.data[i * 4 + 2] = frameBuffer[i] & 0xFF;
-            imageData.data[i * 4 + 3] = 0xFF;
-          }
-          ctx.putImageData(imageData, 0, 0);
-        }
-      });
-      nes.loadROM(String.fromCharCode.apply(null, romBuffer));
-      nes.start();
+    // NES rendering and loop
+    function nesOnFrame(frameBuffer) {
+      for (let i = 0; i < frameBuffer.length; i++) {
+        nesImageData.data[i * 4 + 0] = (frameBuffer[i] >> 16) & 0xFF;
+        nesImageData.data[i * 4 + 1] = (frameBuffer[i] >> 8) & 0xFF;
+        nesImageData.data[i * 4 + 2] = frameBuffer[i] & 0xFF;
+        nesImageData.data[i * 4 + 3] = 0xFF;
+      }
+      nesCtx.putImageData(nesImageData, 0, 0);
     }
 
+    function startNesEmulator(romBuffer) {
+      stopNesEmulator();
+      nes = new jsnes.NES({
+        onFrame: nesOnFrame
+      });
+      nes.loadROM(Array.prototype.map.call(romBuffer, x => String.fromCharCode(x)).join(""));
+      nesRunning = true;
+      requestAnimationFrame(nesLoop);
+    }
+
+    function stopNesEmulator() {
+      nesRunning = false;
+      nes = null;
+    }
+
+    function nesLoop() {
+      if (!nesRunning || !nes) return;
+      for (let i = 0; i < 3; i++) nes.frame();
+      requestAnimationFrame(nesLoop);
+    }
+
+    // NES keyboard controls
+    const JSNES_CONTROLLER = jsnes.Controller;
+    const NES_KEYMAP = {
+      88: JSNES_CONTROLLER.BUTTON_A,      // X
+      90: JSNES_CONTROLLER.BUTTON_B,      // Z
+      13: JSNES_CONTROLLER.BUTTON_START,  // Enter
+      16: JSNES_CONTROLLER.BUTTON_SELECT, // Shift
+      38: JSNES_CONTROLLER.BUTTON_UP,     // Up
+      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down
+      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left
+      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right
+    };
+
+    window.addEventListener("keydown", event => {
+      if (!nes) return;
+      const key = NES_KEYMAP[event.keyCode];
+      if (typeof key !== "undefined") {
+        nes.buttonDown(1, key);
+        event.preventDefault();
+      }
+    });
+    window.addEventListener("keyup", event => {
+      if (!nes) return;
+      const key = NES_KEYMAP[event.keyCode];
+      if (typeof key !== "undefined") {
+        nes.buttonUp(1, key);
+        event.preventDefault();
+      }
+    });
+
+    // File handling
     romInput.addEventListener('change', function(e){
       const file = e.target.files[0];
       if (!file) return;
@@ -115,10 +145,10 @@
         const arr = new Uint8Array(reader.result);
         if (consoleSelect.value === 'gameboy') {
           startGameBoyEmulator(arr);
-        } else if (consoleSelect.value === 'nes') {
-          startNesEmulator(arr);
+          stopNesEmulator();
         } else {
-          alert('NDS emulation is not available in this demo.');
+          startNesEmulator(arr);
+          if (gameboy) gameboy.stop();
         }
       };
       reader.readAsArrayBuffer(file);
@@ -126,6 +156,9 @@
 
     consoleSelect.addEventListener('change', function() {
       showConsole(consoleSelect.value);
+      // Stop both emulators when switching
+      if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
+      if (consoleSelect.value === 'nes' && gameboy) gameboy.stop();
     });
 
     // Initial console setup
