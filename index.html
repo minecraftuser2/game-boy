@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Game Boy Emulator Online</title>
+  <title>Game Boy & NES Emulator Online</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
-    #gameboy, #snes-message { display: none; margin: 20px auto; }
+    #gameboy, #nes { display: none; margin: 20px auto; }
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
@@ -13,58 +13,71 @@
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
+  <!-- jsnes NES emulator -->
+  <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
 </head>
 <body>
-  <h1>Emulator: Game Boy & SNES</h1>
+  <h1>Emulator: Game Boy & NES</h1>
   <label for="consoleSelect">Choose Console:</label>
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
-    <option value="snes">SNES (not available)</option>
+    <option value="nes">NES</option>
+    <option value="nds">NDS (Experimental)</option>
   </select>
   <br>
-  <input type="file" id="romInput" accept=".gb">
+  <input type="file" id="romInput" accept=".gb,.nes,.nds">
   <p id="hint">
     <b>Instructions:</b><br>
-    1. Select Game Boy and upload a <code>.gb</code> ROM file to start playing.<br>
+    1. Select NES and upload your legally-owned NES ROM (<code>.nes</code>).<br>
+    2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
     <i>No games are included on this page. Please use your own ROM files.</i><br>
-    <b>Note:</b> SNES emulation is not available in this simple HTML setup.
+    <b>NDS support is experimental and not available in this demo.</b>
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
-  <div id="snes-message">
+  <canvas id="nes" width="256" height="240"></canvas>
+  <div id="nds-message" style="display:none;">
     <p>
-      <b>SNES emulation is not available in this demo.</b><br>
-      In a single HTML file, browser-based SNES emulators cannot be loaded due to modern JavaScript module requirements.<br>
-      If you want NES emulation, let me know and I can add that for you!
+      <b>Nintendo DS (NDS) emulation is not available in this simple HTML demo.</b><br>
+      Browser-based NDS emulation requires a complex setup with multiple files and WASM support.<br>
+      If you want to try it, see <a href="https://github.com/rafaelvcaetano/melonDS-web" style="color: #9cf;">melonDS-web</a>.<br>
+      Let me know if you want step-by-step help setting up a web-based NDS emulator!
     </p>
   </div>
   <script>
     let gameboy = null;
+    let nes = null;
     const gameboyCanvas = document.getElementById('gameboy');
-    const snesMessage = document.getElementById('snes-message');
+    const nesCanvas = document.getElementById('nes');
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
+    const ndsMessage = document.getElementById('nds-message');
 
     function showConsole(consoleName) {
+      gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
+      nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
+      ndsMessage.style.display = (consoleName === 'nds') ? 'block' : 'none';
       if (consoleName === 'gameboy') {
-        gameboyCanvas.style.display = 'block';
-        snesMessage.style.display = 'none';
         romInput.accept = ".gb";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select Game Boy and upload a <code>.gb</code> ROM file to start playing.<br>
-          <i>No games are included on this page. Please use your own ROM files.</i><br>
-          <b>Note:</b> SNES emulation is not available in this simple HTML setup.
+          1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
+          <i>No games are included on this page. Please use your own ROM files.</i>
         `;
-      } else {
-        gameboyCanvas.style.display = 'none';
-        snesMessage.style.display = 'block';
-        romInput.accept = "";
+      } else if (consoleName === 'nes') {
+        romInput.accept = ".nes";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          SNES emulation is not available in this demo.<br>
-          In a single HTML file, browser-based SNES emulators cannot be loaded due to modern JavaScript module requirements.<br>
-          If you want NES emulation, let me know and I can add that for you!
+          1. Select "NES" and upload your legally-owned NES ROM (<code>.nes</code>).<br>
+          <i>No games are included on this page. Please use your own ROM files.</i>
+        `;
+      } else {
+        romInput.accept = "";
+        hint.innerHTML = `
+          <b>Nintendo DS (NDS) emulation is not available in this simple HTML demo.</b><br>
+          Browser-based NDS emulation requires a complex setup with multiple files and WASM support.<br>
+          If you want to try it, see <a href="https://github.com/rafaelvcaetano/melonDS-web" style="color: #9cf;">melonDS-web</a>.<br>
+          Let me know if you want step-by-step help setting up a web-based NDS emulator!
         `;
       }
     }
@@ -75,17 +88,38 @@
       gameboy.start();
     }
 
+    function startNesEmulator(romBuffer) {
+      if (nes) nes.stop && nes.stop();
+      nes = new jsnes.NES({
+        onFrame: function(frameBuffer){
+          const ctx = nesCanvas.getContext('2d');
+          const imageData = ctx.getImageData(0, 0, 256, 240);
+          for (let i = 0; i < frameBuffer.length; i++) {
+            imageData.data[i * 4 + 0] = (frameBuffer[i] >> 16) & 0xFF;
+            imageData.data[i * 4 + 1] = (frameBuffer[i] >> 8) & 0xFF;
+            imageData.data[i * 4 + 2] = frameBuffer[i] & 0xFF;
+            imageData.data[i * 4 + 3] = 0xFF;
+          }
+          ctx.putImageData(imageData, 0, 0);
+        }
+      });
+      nes.loadROM(String.fromCharCode.apply(null, romBuffer));
+      nes.start();
+    }
+
     romInput.addEventListener('change', function(e){
       const file = e.target.files[0];
       if (!file) return;
-      if (consoleSelect.value !== 'gameboy') {
-        alert('SNES emulation is not available.');
-        return;
-      }
       const reader = new FileReader();
       reader.onload = function() {
         const arr = new Uint8Array(reader.result);
-        startGameBoyEmulator(arr);
+        if (consoleSelect.value === 'gameboy') {
+          startGameBoyEmulator(arr);
+        } else if (consoleSelect.value === 'nes') {
+          startNesEmulator(arr);
+        } else {
+          alert('NDS emulation is not available in this demo.');
+        }
       };
       reader.readAsArrayBuffer(file);
     });
