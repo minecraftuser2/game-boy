@@ -2,43 +2,45 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Game Boy & SNES Emulator Online</title>
+  <title>Game Boy Emulator Online</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
-    #gameboy, #snes-container { display: none; margin: 20px auto; }
+    #gameboy, #snes-message { display: none; margin: 20px auto; }
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
-    #snes-container { display: flex; justify-content: center; }
   </style>
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
-  <!-- snes-embed JS SNES emulator -->
-  <script src="https://cdn.jsdelivr.net/npm/snes-embed/lib/snes-embed.js"></script>
 </head>
 <body>
   <h1>Emulator: Game Boy & SNES</h1>
   <label for="consoleSelect">Choose Console:</label>
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
-    <option value="snes">SNES</option>
+    <option value="snes">SNES (not available)</option>
   </select>
   <br>
-  <input type="file" id="romInput" accept=".gb,.sfc,.smc">
+  <input type="file" id="romInput" accept=".gb">
   <p id="hint">
     <b>Instructions:</b><br>
-    1. Select SNES and upload your legally-owned SNES ROM (<code>.sfc</code> or <code>.smc</code>).<br>
-    2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
-    <i>No games are included on this page. Please use your own ROM files.</i>
+    1. Select Game Boy and upload a <code>.gb</code> ROM file to start playing.<br>
+    <i>No games are included on this page. Please use your own ROM files.</i><br>
+    <b>Note:</b> SNES emulation is not available in this simple HTML setup.
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
-  <div id="snes-container"><div id="snes"></div></div>
+  <div id="snes-message">
+    <p>
+      <b>SNES emulation is not available in this demo.</b><br>
+      In a single HTML file, browser-based SNES emulators cannot be loaded due to modern JavaScript module requirements.<br>
+      If you want NES emulation, let me know and I can add that for you!
+    </p>
+  </div>
   <script>
     let gameboy = null;
     const gameboyCanvas = document.getElementById('gameboy');
-    const snesContainer = document.getElementById('snes-container');
-    const snesDiv = document.getElementById('snes');
+    const snesMessage = document.getElementById('snes-message');
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
@@ -46,21 +48,23 @@
     function showConsole(consoleName) {
       if (consoleName === 'gameboy') {
         gameboyCanvas.style.display = 'block';
-        snesContainer.style.display = 'none';
+        snesMessage.style.display = 'none';
         romInput.accept = ".gb";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
-          <i>No games are included on this page. Please use your own ROM files.</i>
+          1. Select Game Boy and upload a <code>.gb</code> ROM file to start playing.<br>
+          <i>No games are included on this page. Please use your own ROM files.</i><br>
+          <b>Note:</b> SNES emulation is not available in this simple HTML setup.
         `;
       } else {
         gameboyCanvas.style.display = 'none';
-        snesContainer.style.display = 'flex';
-        romInput.accept = ".sfc,.smc";
+        snesMessage.style.display = 'block';
+        romInput.accept = "";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "SNES" and upload your legally-owned SNES ROM (<code>.sfc</code> or <code>.smc</code>).<br>
-          <i>No games are included on this page. Please use your own ROM files.</i>
+          SNES emulation is not available in this demo.<br>
+          In a single HTML file, browser-based SNES emulators cannot be loaded due to modern JavaScript module requirements.<br>
+          If you want NES emulation, let me know and I can add that for you!
         `;
       }
     }
@@ -71,30 +75,17 @@
       gameboy.start();
     }
 
-    function startSnesEmulator(romBuffer) {
-      // Remove previous emulator UI if present
-      snesDiv.innerHTML = "";
-      if (window.snesEmbed) {
-        window.snesEmbed({
-          element: snesDiv,
-          romBuffer: romBuffer
-        });
-      } else {
-        alert('SNES emulator failed to load.');
-      }
-    }
-
     romInput.addEventListener('change', function(e){
       const file = e.target.files[0];
       if (!file) return;
+      if (consoleSelect.value !== 'gameboy') {
+        alert('SNES emulation is not available.');
+        return;
+      }
       const reader = new FileReader();
       reader.onload = function() {
         const arr = new Uint8Array(reader.result);
-        if (consoleSelect.value === 'gameboy') {
-          startGameBoyEmulator(arr);
-        } else {
-          startSnesEmulator(arr);
-        }
+        startGameBoyEmulator(arr);
       };
       reader.readAsArrayBuffer(file);
     });
