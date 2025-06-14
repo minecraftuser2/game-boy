@@ -49,17 +49,24 @@
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
   <script>
-    // Pre-hosted cheats for popular games
+    // Pre-hosted cheats for popular games & combos
     const CHEATS = {
       nes: {
         'Super Mario Bros.': [
-          { name: 'Infinite Lives', code: 'SZLIVO' }, // Game Genie
+          { name: 'Infinite Lives', code: 'SZLIVO' },
           { name: 'Invincibility (except pits)', code: 'SZNZVZ' }
+        ],
+        'Super Mario Bros. + Duck Hunt': [
+          { name: 'Infinite Lives (Mario)', code: 'SZLIVO' },
+          { name: 'Invincibility (Mario, except pits)', code: 'SZNZVZ' }
+        ],
+        'Duck Hunt': [
+          { name: 'Always First Duck', code: 'AENUKTPA' }
         ]
       },
       gameboy: {
         'Pokémon Red': [
-          { name: 'Infinite Money', code: '019973d5' }, // GameShark
+          { name: 'Infinite Money', code: '019973d5' },
           { name: 'Walk Through Walls', code: '010138cd' }
         ]
       }
@@ -182,8 +189,7 @@
       }
     });
 
-    // Gamepad support (see above for code)
-
+    // Gamepad support
     let lastPadState = {};
 
     function pollGamepad() {
@@ -245,19 +251,24 @@
     applyCheatBtn.onclick = function() {
       const code = cheatSelect.value;
       if (!code) return;
-      if (currentConsole === 'nes' && nes) {
-        nes.setGameGenie(code);
-        alert('Cheat applied! Restart level if needed.');
-      } else if (currentConsole === 'gameboy' && gameboy) {
-        gameboy.setCheat(code); // This works in gameboy-online
+      if (currentConsole === 'nes' && nes && typeof nes.setGameGenie === 'function') {
+        // Always use array for jsnes
+        nes.setGameGenie([code]);
+        alert('Cheat applied! If nothing happens, try resetting the level or reloading the ROM.');
+      } else if (currentConsole === 'gameboy' && gameboy && typeof gameboy.setCheat === 'function') {
+        gameboy.setCheat(code);
         alert('Cheat applied! If nothing happens, try reloading the game.');
+      } else {
+        alert('Cheats are not supported in this emulator build.');
       }
     };
 
     // --- ROM title detection for cheats ---
     function detectNesTitle(romBuffer, romName) {
-      // Very simple: check filename for Mario, etc.
-      if (/mario/i.test(romName)) return 'Super Mario Bros.';
+      const n = romName.toLowerCase();
+      if (n.includes("mario") && n.includes("duck")) return "Super Mario Bros. + Duck Hunt";
+      if (n.includes("mario")) return "Super Mario Bros.";
+      if (n.includes("duck")) return "Duck Hunt";
       return '';
     }
     function detectGameboyTitle(romBuffer, romName) {
@@ -293,8 +304,7 @@
     showConsole('gameboy');
   </script>
 </body>
-</html>
-    // Initial console setup
+</html> setup
     showConsole('gameboy');
   </script>
 </body>
