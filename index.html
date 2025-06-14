@@ -102,7 +102,7 @@
 
     function nesLoop() {
       if (!nesRunning || !nes) return;
-      for (let i = 0; i < 3; i++) nes.frame();
+    nes.frame();
       requestAnimationFrame(nesLoop);
     }
 
