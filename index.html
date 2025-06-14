@@ -2,13 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Game Boy & NES Emulator Online</title>
+  <title>Game Boy & NES Emulator Online (with Cheats!)</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
     #gameboy, #nes { display: none; margin: 20px auto; }
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
+    #cheats { margin: 1em auto; width: 320px; background: #333; border-radius: 8px; padding: 1em; display: none; }
+    #cheats label { font-size: 1em; }
+    #cheats select { width: 200px; }
+    #cheats button { margin-left: 0.5em; }
   </style>
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
@@ -17,7 +21,7 @@
   <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
 </head>
 <body>
-  <h1>Emulator: Game Boy & NES</h1>
+  <h1>Emulator: Game Boy & NES (with Cheats!)</h1>
   <label for="consoleSelect">Choose Console:</label>
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
@@ -31,11 +35,39 @@
     2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
     <i>No games are included on this page. Please use your own ROM files.</i>
     <br>
-    <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+    <b>Controls:</b> Keyboard and controller supported.
+    <br>
+    <b>Cheats:</b> Use the menu below after loading a ROM!
   </p>
+  <div id="cheats">
+    <label for="cheatSelect">Apply a cheat:</label>
+    <select id="cheatSelect">
+      <option value="">-- Select a Cheat --</option>
+    </select>
+    <button id="applyCheatBtn">Apply</button>
+  </div>
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
   <script>
+    // Pre-hosted cheats for popular games
+    const CHEATS = {
+      nes: {
+        'Super Mario Bros.': [
+          { name: 'Infinite Lives', code: 'SZLIVO' }, // Game Genie
+          { name: 'Invincibility (except pits)', code: 'SZNZVZ' }
+        ]
+      },
+      gameboy: {
+        'Pokémon Red': [
+          { name: 'Infinite Money', code: '019973d5' }, // GameShark
+          { name: 'Walk Through Walls', code: '010138cd' }
+        ]
+      }
+    };
+
+    let currentGameTitle = '';
+    let currentConsole = 'gameboy';
+
     // Game Boy setup
     let gameboy = null;
     const gameboyCanvas = document.getElementById('gameboy');
@@ -49,10 +81,16 @@
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
+    const cheatsDiv = document.getElementById('cheats');
+    const cheatSelect = document.getElementById('cheatSelect');
+    const applyCheatBtn = document.getElementById('applyCheatBtn');
 
     function showConsole(consoleName) {
+      currentConsole = consoleName;
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
       nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
+      cheatsDiv.style.display = 'none';
+      cheatSelect.innerHTML = `<option value="">-- Select a Cheat --</option>`;
       if (consoleName === 'gameboy') {
         romInput.accept = ".gb";
         hint.innerHTML = `
@@ -60,7 +98,9 @@
           1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
           <br>
-          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+          <b>Controls:</b> Keyboard and controller supported.
+          <br>
+          <b>Cheats:</b> Use the menu below after loading a ROM!
         `;
       } else {
         romInput.accept = ".nes";
@@ -69,15 +109,19 @@
           1. Select "NES" and upload your legally-owned NES ROM (<code>.nes</code>).<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
           <br>
-          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+          <b>Controls:</b> Keyboard and controller supported.
+          <br>
+          <b>Cheats:</b> Use the menu below after loading a ROM!
         `;
       }
     }
 
-    function startGameBoyEmulator(romBuffer) {
+    function startGameBoyEmulator(romBuffer, romName) {
       if (gameboy) gameboy.stop();
       gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
       gameboy.start();
+      currentGameTitle = detectGameboyTitle(romBuffer, romName);
+      populateCheats();
     }
 
     // NES rendering and loop
@@ -91,13 +135,15 @@
       nesCtx.putImageData(nesImageData, 0, 0);
     }
 
-    function startNesEmulator(romBuffer) {
+    function startNesEmulator(romBuffer, romName) {
       stopNesEmulator();
       nes = new jsnes.NES({
         onFrame: nesOnFrame
       });
       nes.loadROM(Array.prototype.map.call(romBuffer, x => String.fromCharCode(x)).join(""));
       nesRunning = true;
+      currentGameTitle = detectNesTitle(romBuffer, romName);
+      populateCheats();
       requestAnimationFrame(nesLoop);
     }
 
@@ -106,17 +152,17 @@
       nes = null;
     }
 
-    // Keyboard controls for NES
+    // NES keyboard controls
     const JSNES_CONTROLLER = jsnes.Controller;
     const NES_KEYMAP = {
       88: JSNES_CONTROLLER.BUTTON_A,      // X
       90: JSNES_CONTROLLER.BUTTON_B,      // Z
       13: JSNES_CONTROLLER.BUTTON_START,  // Enter
       16: JSNES_CONTROLLER.BUTTON_SELECT, // Shift
-      38: JSNES_CONTROLLER.BUTTON_UP,     // Up arrow
-      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down arrow
-      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left arrow
-      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right arrow
+      38: JSNES_CONTROLLER.BUTTON_UP,     // Up
+      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down
+      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left
+      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right
     };
 
     window.addEventListener("keydown", event => {
@@ -136,7 +182,8 @@
       }
     });
 
-    // Gamepad state tracking to avoid repeated presses
+    // Gamepad support (see above for code)
+
     let lastPadState = {};
 
     function pollGamepad() {
@@ -145,14 +192,14 @@
       if (!gp || !nes) return;
 
       const mapping = [
-        {btn: 0, ctrl: JSNES_CONTROLLER.BUTTON_A},      // A
-        {btn: 1, ctrl: JSNES_CONTROLLER.BUTTON_B},      // B
-        {btn: 8, ctrl: JSNES_CONTROLLER.BUTTON_SELECT}, // Select
-        {btn: 9, ctrl: JSNES_CONTROLLER.BUTTON_START},  // Start
-        {btn: 12, ctrl: JSNES_CONTROLLER.BUTTON_UP},    // D-Pad Up
-        {btn: 13, ctrl: JSNES_CONTROLLER.BUTTON_DOWN},  // D-Pad Down
-        {btn: 14, ctrl: JSNES_CONTROLLER.BUTTON_LEFT},  // D-Pad Left
-        {btn: 15, ctrl: JSNES_CONTROLLER.BUTTON_RIGHT}  // D-Pad Right
+        {btn: 0, ctrl: JSNES_CONTROLLER.BUTTON_A},
+        {btn: 1, ctrl: JSNES_CONTROLLER.BUTTON_B},
+        {btn: 8, ctrl: JSNES_CONTROLLER.BUTTON_SELECT},
+        {btn: 9, ctrl: JSNES_CONTROLLER.BUTTON_START},
+        {btn: 12, ctrl: JSNES_CONTROLLER.BUTTON_UP},
+        {btn: 13, ctrl: JSNES_CONTROLLER.BUTTON_DOWN},
+        {btn: 14, ctrl: JSNES_CONTROLLER.BUTTON_LEFT},
+        {btn: 15, ctrl: JSNES_CONTROLLER.BUTTON_RIGHT}
       ];
 
       mapping.forEach(map => {
@@ -173,6 +220,51 @@
       requestAnimationFrame(nesLoop);
     }
 
+    // --- Cheat support logic ---
+    function populateCheats() {
+      cheatSelect.innerHTML = `<option value="">-- Select a Cheat --</option>`;
+      let cheatOptions = [];
+      if (currentConsole === 'nes') {
+        cheatOptions = CHEATS.nes[currentGameTitle] || [];
+      } else if (currentConsole === 'gameboy') {
+        cheatOptions = CHEATS.gameboy[currentGameTitle] || [];
+      }
+      if (cheatOptions.length > 0) {
+        cheatOptions.forEach(opt => {
+          const el = document.createElement('option');
+          el.value = opt.code;
+          el.textContent = opt.name + ' (' + opt.code + ')';
+          cheatSelect.appendChild(el);
+        });
+        cheatsDiv.style.display = 'block';
+      } else {
+        cheatsDiv.style.display = 'none';
+      }
+    }
+
+    applyCheatBtn.onclick = function() {
+      const code = cheatSelect.value;
+      if (!code) return;
+      if (currentConsole === 'nes' && nes) {
+        nes.setGameGenie(code);
+        alert('Cheat applied! Restart level if needed.');
+      } else if (currentConsole === 'gameboy' && gameboy) {
+        gameboy.setCheat(code); // This works in gameboy-online
+        alert('Cheat applied! If nothing happens, try reloading the game.');
+      }
+    };
+
+    // --- ROM title detection for cheats ---
+    function detectNesTitle(romBuffer, romName) {
+      // Very simple: check filename for Mario, etc.
+      if (/mario/i.test(romName)) return 'Super Mario Bros.';
+      return '';
+    }
+    function detectGameboyTitle(romBuffer, romName) {
+      if (/pokemon.*red/i.test(romName)) return 'Pokémon Red';
+      return '';
+    }
+
     // File handling
     romInput.addEventListener('change', function(e){
       const file = e.target.files[0];
@@ -181,10 +273,10 @@
       reader.onload = function() {
         const arr = new Uint8Array(reader.result);
         if (consoleSelect.value === 'gameboy') {
-          startGameBoyEmulator(arr);
+          startGameBoyEmulator(arr, file.name);
           stopNesEmulator();
         } else {
-          startNesEmulator(arr);
+          startNesEmulator(arr, file.name);
           if (gameboy) gameboy.stop();
         }
       };
@@ -193,7 +285,6 @@
 
     consoleSelect.addEventListener('change', function() {
       showConsole(consoleSelect.value);
-      // Stop both emulators when switching
       if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
       if (consoleSelect.value === 'nes' && gameboy) gameboy.stop();
     });
