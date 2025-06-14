@@ -9,6 +9,21 @@
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
+    .fullscreen-btn {
+      margin: 10px auto 20px auto;
+      display: block;
+      background: #444;
+      color: #fff;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .fullscreen-btn:hover {
+      background: #666;
+    }
   </style>
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
@@ -33,6 +48,7 @@
     <br>
     <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
   </p>
+  <button id="fullscreenBtn" class="fullscreen-btn">Fullscreen</button>
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
   <script>
@@ -49,10 +65,12 @@
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
 
     function showConsole(consoleName) {
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
       nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
+      fullscreenBtn.style.display = 'block';
       if (consoleName === 'gameboy') {
         romInput.accept = ".gb";
         hint.innerHTML = `
@@ -196,6 +214,58 @@
       // Stop both emulators when switching
       if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
       if (consoleSelect.value === 'nes' && gameboy) gameboy.stop();
+    });
+
+    // Fullscreen logic
+    function isFullscreen() {
+      return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    }
+    function requestFullscreen(ele) {
+      if (ele.requestFullscreen) {
+        ele.requestFullscreen();
+      } else if (ele.webkitRequestFullscreen) {
+        ele.webkitRequestFullscreen();
+      } else if (ele.mozRequestFullScreen) {
+        ele.mozRequestFullScreen();
+      } else if (ele.msRequestFullscreen) {
+        ele.msRequestFullscreen();
+      }
+    }
+    function exitFullscreen() {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+
+    fullscreenBtn.addEventListener('click', function() {
+      // Show the currently visible canvas in fullscreen
+      const consoleName = consoleSelect.value;
+      const canvas = (consoleName === 'gameboy') ? gameboyCanvas : nesCanvas;
+      if (!isFullscreen()) {
+        requestFullscreen(canvas);
+      } else {
+        exitFullscreen();
+      }
+    });
+
+    // Optionally update button text depending on fullscreen state
+    document.addEventListener('fullscreenchange', function() {
+      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
+    });
+    document.addEventListener('webkitfullscreenchange', function() {
+      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
+    });
+    document.addEventListener('mozfullscreenchange', function() {
+      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
+    });
+    document.addEventListener('MSFullscreenChange', function() {
+      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
     });
 
     // Initial console setup
