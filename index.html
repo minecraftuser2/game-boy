@@ -5,8 +5,7 @@
   <title>Game Boy & SNES Emulator Online</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
-    #gameboy, #snes { display: none; margin: 20px auto; }
-    #consoleSelect, #romInput { margin: 16px; }
+    #gameboy, #snes-container { display: none; margin: 20px auto; }
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
@@ -29,17 +28,14 @@
   <input type="file" id="romInput" accept=".gb,.sfc,.smc">
   <p id="hint">
     <b>Instructions:</b><br>
-    1. Select SNES and upload your legally-owned SNES ROM (e.g., Super Mario World: <code>.sfc</code> or <code>.smc</code>).<br>
+    1. Select SNES and upload your legally-owned SNES ROM (<code>.sfc</code> or <code>.smc</code>).<br>
     2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
     <i>No games are included on this page. Please use your own ROM files.</i>
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
-  <div id="snes-container" style="display:none;">
-    <div id="snes"></div>
-  </div>
+  <div id="snes-container"><div id="snes"></div></div>
   <script>
     let gameboy = null;
-    let snes = null;
     const gameboyCanvas = document.getElementById('gameboy');
     const snesContainer = document.getElementById('snes-container');
     const snesDiv = document.getElementById('snes');
@@ -48,9 +44,9 @@
     const hint = document.getElementById('hint');
 
     function showConsole(consoleName) {
-      gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
-      snesContainer.style.display = (consoleName === 'snes') ? 'flex' : 'none';
       if (consoleName === 'gameboy') {
+        gameboyCanvas.style.display = 'block';
+        snesContainer.style.display = 'none';
         romInput.accept = ".gb";
         hint.innerHTML = `
           <b>Instructions:</b><br>
@@ -58,10 +54,12 @@
           <i>No games are included on this page. Please use your own ROM files.</i>
         `;
       } else {
+        gameboyCanvas.style.display = 'none';
+        snesContainer.style.display = 'flex';
         romInput.accept = ".sfc,.smc";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "SNES" and upload your legally-owned SNES ROM (e.g., Super Mario World: <code>.sfc</code> or <code>.smc</code>).<br>
+          1. Select "SNES" and upload your legally-owned SNES ROM (<code>.sfc</code> or <code>.smc</code>).<br>
           <i>No games are included on this page. Please use your own ROM files.</i>
         `;
       }
@@ -74,7 +72,7 @@
     }
 
     function startSnesEmulator(romBuffer) {
-      // Remove previous emulator if present
+      // Remove previous emulator UI if present
       snesDiv.innerHTML = "";
       if (window.snesEmbed) {
         window.snesEmbed({
@@ -105,12 +103,7 @@
       showConsole(consoleSelect.value);
     });
 
-    // Initialize with Game Boy selected
-    showConsole('gameboy');
-  </script>
-</body>
-</html>
-    // Initialize with Game Boy selected
+    // Initial console setup
     showConsole('gameboy');
   </script>
 </body>
