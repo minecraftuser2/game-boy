@@ -2,44 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Game Boy, NES & DOS Emulator Online</title>
+  <title>Game Boy, NES, & MS-DOS in v86 Emulator Online</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
-    #gameboy, #nes, #dosbox { display: none; margin: 20px auto; }
-    canvas { box-shadow: 0 0 10px #000; }
+    #gameboy, #nes, #v86box { display: none; margin: 20px auto; }
+    canvas, .v86-canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
+    #v86status { color: #aaa; margin: 1em; }
   </style>
   <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
   <!-- jsnes NES emulator -->
   <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
-  <!-- js-dos DOS emulator -->
-  <script src="https://js-dos.com/6.22/current/js-dos.js"></script>
+  <!-- v86 x86 emulator -->
+  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
 </head>
 <body>
-  <h1>Emulator: Game Boy, NES & DOS</h1>
+  <h1>Emulator: Game Boy, NES, & MS-DOS (v86)</h1>
   <label for="consoleSelect">Choose Console:</label>
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
     <option value="nes">NES</option>
-    <option value="dos">DOS (Command Line)</option>
+    <option value="v86">MS-DOS (v86)</option>
   </select>
   <br>
-  <input type="file" id="romInput" accept=".gb,.nes,.jsdos,.iso">
+  <input type="file" id="romInput" accept=".gb,.nes">
   <p id="hint">
     <b>Instructions:</b><br>
-    - For Game Boy: upload a <code>.gb</code> ROM.<br>
-    - For NES: upload a <code>.nes</code> ROM.<br>
-    - For DOS: just select DOS and you'll get a command prompt.<br>
-    &nbsp;&nbsp;&nbsp;To mount an <code>.iso</code>, select DOS, upload your ISO, and follow the instructions.<br>
-    <i>No games are included on this page. Please use your own files.</i><br>
-    <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows), controller (Xbox, etc.) for NES/GB. Mouse/keyboard for DOS.
+    - Game Boy: upload <code>.gb</code> ROM.<br>
+    - NES: upload <code>.nes</code> ROM.<br>
+    - MS-DOS (v86): boots real MS-DOS 6.22; classic command prompt.<br>
+    <i>No games are included. Please use your own files.</i><br>
+    <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows), controller (NES/GB), mouse/keyboard for MS-DOS.
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
-  <div id="dosbox" style="width:640px; height:400px;"></div>
+  <div id="v86box" style="width:720px; height:400px; margin:auto;">
+    <div id="v86status">Loading MS-DOS 6.22 image, please wait...</div>
+  </div>
   <script>
     // Game Boy setup
     let gameboy = null;
@@ -51,10 +53,14 @@
     const nesCtx = nesCanvas.getContext('2d');
     let nesImageData = nesCtx.getImageData(0, 0, 256, 240);
 
-    // DOS setup
-    let dos = null;
-    const dosDiv = document.getElementById('dosbox');
-    let lastIsoFile = null;
+    // v86 setup
+    let v86 = null;
+    const v86Div = document.getElementById('v86box');
+    const v86Status = document.getElementById('v86status');
+    const V86_BIOS_URL = "https://copy.sh/v86/bios/seabios.bin";
+    const V86_VGABIOS_URL = "https://copy.sh/v86/bios/vgabios.bin";
+    const V86_HDD_URL = "https://copy.sh/v86/images/msdos622.img";
+    const V86_WASM_URL = "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm";
 
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
@@ -63,51 +69,46 @@
     function showConsole(consoleName) {
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
       nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
-      dosDiv.style.display = (consoleName === 'dos') ? 'block' : 'none';
+      v86Div.style.display = (consoleName === 'v86') ? 'block' : 'none';
       if (consoleName === 'gameboy') {
         romInput.accept = ".gb";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
-          <i>No games are included on this page. Please use your own ROM files.</i>
+          1. Select "Game Boy" and upload a <code>.gb</code> ROM.<br>
+          <i>No games are included. Please use your own ROM files.</i>
           <br>
-          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller supported!
         `;
       } else if (consoleName === 'nes') {
         romInput.accept = ".nes";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "NES" and upload your legally-owned NES ROM (<code>.nes</code>).<br>
-          <i>No games are included on this page. Please use your own ROM files.</i>
+          1. Select "NES" and upload your <code>.nes</code> ROM.<br>
+          <i>No games are included. Please use your own ROM files.</i>
           <br>
-          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller supported!
         `;
-      } else if (consoleName === 'dos') {
-        romInput.accept = ".jsdos,.iso";
+      } else if (consoleName === 'v86') {
+        romInput.accept = ""; // v86 doesn't take file uploads by default here
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "DOS (Command Line)" for a DOS prompt.<br>
-          2. To mount a CD-ROM image: upload your <code>.iso</code>, then type:<br>
-          <code>IMGMOUNT d yourfile.iso -t iso</code><br>
-          <code>d:</code><br>
-          <i>Your ISO will be available as D: in DOS. No games are included on this page.</i><br>
-          <b>Controls:</b> Mouse and keyboard, just like classic DOS.
+          1. Select "MS-DOS (v86)" for a real MS-DOS 6.22 PC.<br>
+          <i>Click the window and use your keyboard. No games are included.</i><br>
+          <b>Controls:</b> Mouse and keyboard, just like a real PC.
         `;
-        // Start plain DOS if not already running, or if no children in dosDiv (fresh)
-        if (!dos || !dosDiv.hasChildNodes()) {
-          runDosPrompt();
-        }
+        if (!v86) startV86();
       }
     }
 
+    // Game Boy
     function startGameBoyEmulator(romBuffer) {
       if (gameboy) gameboy.stop();
-      if (dos) { dos.stop(); dos = null; }
+      if (v86) { v86.stop(); v86 = null; resetV86Box(); }
       gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
       gameboy.start();
     }
 
-    // NES rendering and loop
+    // NES
     function nesOnFrame(frameBuffer) {
       for (let i = 0; i < frameBuffer.length; i++) {
         nesImageData.data[i * 4 + 0] = (frameBuffer[i] >> 16) & 0xFF;
@@ -117,122 +118,45 @@
       }
       nesCtx.putImageData(nesImageData, 0, 0);
     }
-
     function startNesEmulator(romBuffer) {
       stopNesEmulator();
-      if (dos) { dos.stop(); dos = null; }
-      nes = new jsnes.NES({
-        onFrame: nesOnFrame
-      });
+      if (v86) { v86.stop(); v86 = null; resetV86Box(); }
+      nes = new jsnes.NES({ onFrame: nesOnFrame });
       nes.loadROM(Array.prototype.map.call(romBuffer, x => String.fromCharCode(x)).join(""));
       nesRunning = true;
       requestAnimationFrame(nesLoop);
     }
+    function stopNesEmulator() { nesRunning = false; nes = null; }
+    function nesLoop() { if (!nesRunning || !nes) return; nes.frame(); requestAnimationFrame(nesLoop); }
 
-    function stopNesEmulator() {
-      nesRunning = false;
-      nes = null;
+    // v86 (MS-DOS) -- helper to clear the div for reboots
+    function resetV86Box() {
+      v86Div.innerHTML = '<div id="v86status">Loading MS-DOS 6.22 image, please wait...</div>';
     }
-
-    // Keyboard controls for NES
-    const JSNES_CONTROLLER = jsnes.Controller;
-    const NES_KEYMAP = {
-      88: JSNES_CONTROLLER.BUTTON_A,      // X
-      90: JSNES_CONTROLLER.BUTTON_B,      // Z
-      13: JSNES_CONTROLLER.BUTTON_START,  // Enter
-      16: JSNES_CONTROLLER.BUTTON_SELECT, // Shift
-      38: JSNES_CONTROLLER.BUTTON_UP,     // Up arrow
-      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down arrow
-      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left arrow
-      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right arrow
-    };
-
-    window.addEventListener("keydown", event => {
-      if (!nes) return;
-      const key = NES_KEYMAP[event.keyCode];
-      if (typeof key !== "undefined") {
-        nes.buttonDown(1, key);
-        event.preventDefault();
-      }
-    });
-    window.addEventListener("keyup", event => {
-      if (!nes) return;
-      const key = NES_KEYMAP[event.keyCode];
-      if (typeof key !== "undefined") {
-        nes.buttonUp(1, key);
-        event.preventDefault();
-      }
-    });
-
-    // Gamepad state tracking to avoid repeated presses
-    let lastPadState = {};
-
-    function pollGamepad() {
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      const gp = gamepads[0];
-      if (!gp || !nes) return;
-
-      const mapping = [
-        {btn: 0, ctrl: JSNES_CONTROLLER.BUTTON_A},      // A
-        {btn: 1, ctrl: JSNES_CONTROLLER.BUTTON_B},      // B
-        {btn: 8, ctrl: JSNES_CONTROLLER.BUTTON_SELECT}, // Select
-        {btn: 9, ctrl: JSNES_CONTROLLER.BUTTON_START},  // Start
-        {btn: 12, ctrl: JSNES_CONTROLLER.BUTTON_UP},    // D-Pad Up
-        {btn: 13, ctrl: JSNES_CONTROLLER.BUTTON_DOWN},  // D-Pad Down
-        {btn: 14, ctrl: JSNES_CONTROLLER.BUTTON_LEFT},  // D-Pad Left
-        {btn: 15, ctrl: JSNES_CONTROLLER.BUTTON_RIGHT}  // D-Pad Right
-      ];
-
-      mapping.forEach(map => {
-        const pressed = gp.buttons[map.btn] && gp.buttons[map.btn].pressed;
-        if (pressed && !lastPadState[map.btn]) {
-          nes.buttonDown(1, map.ctrl);
-        } else if (!pressed && lastPadState[map.btn]) {
-          nes.buttonUp(1, map.ctrl);
-        }
-        lastPadState[map.btn] = pressed;
+    function startV86() {
+      resetV86Box();
+      v86 = new V86Starter({
+        wasm_path: V86_WASM_URL,
+        memory_size: 32 * 1024 * 1024,
+        vga_memory_size: 2 * 1024 * 1024,
+        screen_container: v86Div,
+        bios: { url: V86_BIOS_URL },
+        vga_bios: { url: V86_VGABIOS_URL },
+        hda: { url: V86_HDD_URL },
+        autostart: true
       });
-    }
-
-    function nesLoop() {
-      if (!nesRunning || !nes) return;
-      nes.frame();
-      pollGamepad();
-      requestAnimationFrame(nesLoop);
-    }
-
-    // DOS: Plain prompt
-    function runDosPrompt() {
-      if (dos) { dos.stop(); dos = null; }
-      Dos(dosDiv, {
-        wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
-        cycles: 20000,
-        autolock: true
-      }).then(instance => {
-        dos = instance;
-        // Show a tip in the console if an ISO was uploaded
-        if (lastIsoFile) {
-          dos.fs.createFile(lastIsoFile.name, new Uint8Array(lastIsoFile.data));
-          setTimeout(() => {
-            dos.keyboardSendText(`IMGMOUNT D ${lastIsoFile.name} -t iso\r\n`);
-            dos.keyboardSendText(`D:\r\n`);
-          }, 1000);
+      v86.add_listener("emulator-ready", function() {
+        v86Status.innerText = "MS-DOS 6.22 is ready! Click the window and use your keyboard.";
+      });
+      v86.add_listener("download-progress", function(e) {
+        if(e.file_name && e.total && e.loaded) {
+          v86Status.innerText =
+            `Loading ${e.file_name}: ${Math.round(e.loaded/e.total*100)}%`;
         }
       });
     }
 
-    function runDosJsdos(arrayBuffer) {
-      if (dos) { dos.stop(); dos = null; }
-      Dos(dosDiv, {
-        wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
-        cycles: 20000,
-        autolock: true
-      }).run(arrayBuffer).then(instance => {
-        dos = instance;
-      });
-    }
-
-    // File handling
+    // File handling (GB, NES only)
     romInput.addEventListener('change', function(e){
       const file = e.target.files[0];
       if (!file) return;
@@ -242,35 +166,25 @@
         if (consoleSelect.value === 'gameboy') {
           startGameBoyEmulator(arr);
           stopNesEmulator();
-          if (dos) { dos.stop(); dos = null; }
+          if (v86) { v86.stop(); v86 = null; resetV86Box(); }
         } else if (consoleSelect.value === 'nes') {
           startNesEmulator(arr);
           if (gameboy) gameboy.stop();
-          if (dos) { dos.stop(); dos = null; }
-        } else if (consoleSelect.value === 'dos') {
-          if (file.name.toLowerCase().endsWith('.jsdos')) {
-            runDosJsdos(reader.result);
-            lastIsoFile = null;
-          } else if (file.name.toLowerCase().endsWith('.iso')) {
-            // Save ISO for mounting after DOS prompt is ready
-            lastIsoFile = { name: file.name, data: arr };
-            runDosPrompt();
-          }
+          if (v86) { v86.stop(); v86 = null; resetV86Box(); }
         }
       };
       reader.readAsArrayBuffer(file);
     });
 
+    // Switch emulator
     consoleSelect.addEventListener('change', function() {
       showConsole(consoleSelect.value);
-      // Stop all emulators when switching
       if (consoleSelect.value !== 'gameboy' && gameboy) gameboy.stop();
       if (consoleSelect.value !== 'nes') stopNesEmulator();
-      if (consoleSelect.value !== 'dos' && dos) { dos.stop(); dos = null; }
-      lastIsoFile = null;
+      if (consoleSelect.value !== 'v86' && v86) { v86.stop(); v86 = null; resetV86Box(); }
     });
 
-    // Initial console setup
+    // Initial setup
     showConsole('gameboy');
   </script>
 </body>
