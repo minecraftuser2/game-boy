@@ -24,17 +24,17 @@
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
     <option value="nes">NES</option>
-    <option value="dos">DOS</option>
+    <option value="dos">DOS (Command Line)</option>
   </select>
   <br>
-  <input type="file" id="romInput" accept=".gb,.nes,.jsdos">
+  <input type="file" id="romInput" accept=".gb,.nes,.jsdos,.iso">
   <p id="hint">
     <b>Instructions:</b><br>
-    1. Select NES and upload your legally-owned NES ROM (<code>.nes</code>).<br>
-    2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
-    3. Or select DOS and upload a <code>.jsdos</code> game archive or try the built-in demo.<br>
-    <i>No games are included on this page. Please use your own ROM/game files.</i>
-    <br>
+    - For Game Boy: upload a <code>.gb</code> ROM.<br>
+    - For NES: upload a <code>.nes</code> ROM.<br>
+    - For DOS: just select DOS and you'll get a command prompt.<br>
+    &nbsp;&nbsp;&nbsp;To mount an <code>.iso</code>, select DOS, upload your ISO, and follow the instructions.<br>
+    <i>No games are included on this page. Please use your own files.</i><br>
     <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows), controller (Xbox, etc.) for NES/GB. Mouse/keyboard for DOS.
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
@@ -58,6 +58,7 @@
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
     const hint = document.getElementById('hint');
+    let lastIsoFile = null;
 
     function showConsole(consoleName) {
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
@@ -82,23 +83,74 @@
           <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
         `;
       } else if (consoleName === 'dos') {
-        romInput.accept = ".jsdos";
+        romInput.accept = ".jsdos,.iso";
         hint.innerHTML = `
           <b>Instructions:</b><br>
-          1. Select "DOS" and upload a <code>.jsdos</code> game archive, or just try the built-in DOOM demo.<br>
-          <i>No games are included on this page. Please use your own .jsdos game files.</i>
-          <br>
-          <b>Controls:</b> Mouse and keyboard (as in classic DOS).
+          1. Select "DOS (Command Line)" for a DOS prompt.<br>
+          2. To mount a CD-ROM image: upload your <code>.iso</code>, then type:<br>
+          <code>IMGMOUNT d yourfile.iso -t iso</code><br>
+          <code>d:</code><br>
+          <i>Your ISO will be available as D: in DOS. No games are included on this page.</i><br>
+          <b>Controls:</b> Mouse and keyboard, just like classic DOS.
         `;
-        // If switching to DOS and nothing loaded yet, show demo
-        if (!dosDiv.hasChildNodes()) {
-          runDosDemo();
+        // Start plain DOS if not already run<!DOCTYPE html>
+        autolock: true
+      }).run(arrayBuffer).then(instance => {
+        dos = instance;
+      });
+    }
+
+    // File handling
+    romInput.addEventListener('change', function(e){
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function() {
+        const arr = new Uint8Array(reader.result);
+        if (consoleSelect.value === 'gameboy') {
+          startGameBoyEmulator(arr);
+          stopNesEmulator();
+          if (dos) { dos.stop(); dos = null; }
+        } else if (consoleSelect.value === 'nes') {
+          startNesEmulator(arr);
+          if (gameboy) gameboy.stop();
+          if (dos) { dos.stop(); dos = null; }
+        } else if (consoleSelect.value === 'dos') {
+          runDosFile(reader.result);
+          if (gameboy) gameboy.stop();
+          stopNesEmulator();
+        }
+      };
+      // DOS expects ArrayBuffer, others Uint8Array is fine
+      if (consoleSelect.value === 'dos')
+        reader.readAsArrayBuffer(file);
+      else
+        reader.readAsArrayBuffer(file);
+    });
+
+    consoleSelect.addEventListener('change', function() {
+      showConsole(consoleSelect.value);
+      // Stop all emulators when switching
+      if (consoleSelect.value !== 'gameboy' && gameboy) gameboy.stop();
+      if (consoleSelect.value !== 'nes') stopNesEmulator();
+      if (consoleSelect.value !== 'dos' && dos) { dos.stop(); dos = null; }
+    });
+
+    // Initial console setup
+    showConsole('gameboy');
+  </script>
+</body>
+</html>
+ning
+        if (!dos || !dosDiv.hasChildNodes()) {
+          runDosPrompt();
         }
       }
     }
 
     function startGameBoyEmulator(romBuffer) {
       if (gameboy) gameboy.stop();
+      if (dos) { dos.stop(); dos = null; }
       gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
       gameboy.start();
     }
@@ -116,6 +168,7 @@
 
     function startNesEmulator(romBuffer) {
       stopNesEmulator();
+      if (dos) { dos.stop(); dos = null; }
       nes = new jsnes.NES({
         onFrame: nesOnFrame
       });
@@ -196,27 +249,28 @@
       requestAnimationFrame(nesLoop);
     }
 
-    // DOS: run DOOM demo or user .jsdos file
-    function runDosDemo() {
-      // Only run demo if not already running
-      if (dos) {
-        dos.stop();
-        dos = null;
-      }
+    // DOS: Plain prompt
+    function runDosPrompt() {
+      if (dos) { dos.stop(); dos = null; }
       Dos(dosDiv, {
         wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
         cycles: 20000,
         autolock: true
-      }).run("https://js-dos.com/cdn/msdos/doom.jsdos").then(instance => {
+      }).then(instance => {
         dos = instance;
+        // Show a tip in the console if an ISO was uploaded
+        if (lastIsoFile) {
+          dos.fs.createFile(lastIsoFile.name, new Uint8Array(lastIsoFile.data));
+          setTimeout(() => {
+            dos.keyboardSendText(`IMGMOUNT D ${lastIsoFile.name} -t iso\r\n`);
+            dos.keyboardSendText(`D:\r\n`);
+          }, 1000);
+        }
       });
     }
 
-    function runDosFile(arrayBuffer) {
-      if (dos) {
-        dos.stop();
-        dos = null;
-      }
+    function runDosJsdos(arrayBuffer) {
+      if (dos) { dos.stop(); dos = null; }
       Dos(dosDiv, {
         wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
         cycles: 20000,
@@ -242,16 +296,17 @@
           if (gameboy) gameboy.stop();
           if (dos) { dos.stop(); dos = null; }
         } else if (consoleSelect.value === 'dos') {
-          runDosFile(reader.result);
-          if (gameboy) gameboy.stop();
-          stopNesEmulator();
+          if (file.name.toLowerCase().endsWith('.jsdos')) {
+            runDosJsdos(reader.result);
+            lastIsoFile = null;
+          } else if (file.name.toLowerCase().endsWith('.iso')) {
+            // Save ISO for mounting after DOS prompt is ready
+            lastIsoFile = { name: file.name, data: arr };
+            runDosPrompt();
+          }
         }
       };
-      // DOS expects ArrayBuffer, others Uint8Array is fine
-      if (consoleSelect.value === 'dos')
-        reader.readAsArrayBuffer(file);
-      else
-        reader.readAsArrayBuffer(file);
+      reader.readAsArrayBuffer(file);
     });
 
     consoleSelect.addEventListener('change', function() {
@@ -260,6 +315,7 @@
       if (consoleSelect.value !== 'gameboy' && gameboy) gameboy.stop();
       if (consoleSelect.value !== 'nes') stopNesEmulator();
       if (consoleSelect.value !== 'dos' && dos) { dos.stop(); dos = null; }
+      lastIsoFile = null;
     });
 
     // Initial console setup
