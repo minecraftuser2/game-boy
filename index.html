@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Multi Emulator: NES, Game Boy, NDS</title>
+  <title>Multi Emulator: NES, Game Boy, NDS (with js-ds)</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
     h1 { margin-bottom: 0; }
@@ -20,11 +20,11 @@
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
   <!-- jsnes -->
   <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
-  <!-- melonDS-web (https://melonds.kuribo64.net/web/ built) -->
-  <script src="https://unpkg.com/@melonjs/melonds-web@0.9.5/dist/melonds-web.min.js"></script>
+  <!-- js-ds NDS emulator -->
+  <script src="https://unpkg.com/js-ds@0.2.10/dist/nds.js"></script>
 </head>
 <body>
-  <h1>Multi Emulator: NES, Game Boy, NDS</h1>
+  <h1>Multi Emulator: NES, Game Boy, NDS (with js-ds)</h1>
   <label for="consoleSelect">Choose Console:</label>
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
@@ -50,9 +50,7 @@
   </div>
   <canvas id="gameboy-canvas" class="emu-canvas" width="160" height="144"></canvas>
   <canvas id="nes-canvas" class="emu-canvas" width="256" height="240"></canvas>
-  <div id="nds-container" style="display:none;">
-    <canvas id="nds-canvas" width="512" height="384" class="emu-canvas"></canvas>
-  </div>
+  <canvas id="nds-canvas" class="emu-canvas" width="256" height="384" style="background:#222;"></canvas>
   <script>
     // ---- Cheats ----
     const CHEATS = {
@@ -91,11 +89,9 @@
     const nesCtx = nesCanvas.getContext('2d');
     let nesImageData = nesCtx.getImageData(0, 0, 256, 240);
 
-    // --- NDS (melonDS-web) ---
-    let ndsApp = null;
-    let ndsInstance = null;
+    // --- NDS (js-ds) ---
+    let nds = null;
     const ndsCanvas = document.getElementById('nds-canvas');
-    const ndsContainer = document.getElementById('nds-container');
 
     const consoleSelect = document.getElementById('consoleSelect');
     const romInput = document.getElementById('romInput');
@@ -110,7 +106,7 @@
       currentConsole = consoleName;
       gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
       nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
-      ndsContainer.style.display = (consoleName === 'nds') ? 'block' : 'none';
+      ndsCanvas.style.display = (consoleName === 'nds') ? 'block' : 'none';
       cheatsDiv.style.display = 'none';
       ndsCheatsDiv.style.display = (consoleName === 'nds') ? 'block' : 'none';
       cheatSelect.innerHTML = `<option value="">-- Select a Cheat --</option>`;
@@ -223,30 +219,25 @@
       requestAnimationFrame(nesLoop);
     }
 
-    // --- NDS ---
-    async function startNdsEmulator(romBuffer, romName) {
-      if (!window.melonDS) {
-        alert('melonDS-web not loaded!');
+    // --- NDS (js-ds) ---
+    function startNdsEmulator(romBuffer, romName) {
+      if (!window.NDS) {
+        alert('js-ds NDS emulator not loaded!');
         return;
       }
+      if (nds && nds.stop) nds.stop();
       ndsCanvas.style.display = "block";
-      // Stop previous instance
-      if (ndsInstance && ndsInstance.stop) {
-        ndsInstance.stop();
-        ndsInstance = null;
-      }
-      // Clear canvas
-      const ctx = ndsCanvas.getContext('2d');
-      ctx.fillStyle = '#222';
-      ctx.fillRect(0, 0, ndsCanvas.width, ndsCanvas.height);
-      // Launch new
-      ndsInstance = await window.melonDS({
-        romBuffer,
+      // js-ds expects a File or Blob for ROM
+      const file = new File([romBuffer], romName || "game.nds", {type: "application/octet-stream"});
+      nds = new window.NDS({
         canvas: ndsCanvas,
-        width: 512, height: 384,
-        pixelated: true,
+        rom: file,
+        width: 256,
+        height: 384,
+        // Optionally, you can enable/disable audio, etc.
+        // audio: true,
       });
-      // No cheat support in web melonDS
+      // No cheat support in js-ds for browser
     }
 
     // --- Cheat logic (NES/Game Boy) ---
@@ -295,10 +286,12 @@
           startGameBoyEmulator(arr, file.name);
           stopNesEmulator();
           ndsCanvas.style.display = "none";
+          if (nds && nds.stop) nds.stop();
         } else if (consoleSelect.value === 'nes') {
           startNesEmulator(arr, file.name);
           if (gameboy) gameboy.stop();
           ndsCanvas.style.display = "none";
+          if (nds && nds.stop) nds.stop();
         } else if (consoleSelect.value === 'nds') {
           if (gameboy) gameboy.stop();
           stopNesEmulator();
@@ -314,7 +307,7 @@
       if (consoleSelect.value !== 'gameboy' && gameboy) gameboy.stop();
       if (consoleSelect.value !== 'nds') {
         ndsCanvas.style.display = "none";
-        if (ndsInstance && ndsInstance.stop) ndsInstance.stop();
+        if (nds && nds.stop) { nds.stop(); nds = null; }
       }
     });
 
