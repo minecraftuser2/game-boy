@@ -2,315 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Multi Emulator: NES, Game Boy, NDS (with js-ds)</title>
+  <title>Nintendo DS Player - Powered by ds.44670.org</title>
+  <meta name="viewport" content="width=800, initial-scale=1.0">
   <style>
-    body { background: #222; color: #fff; text-align: center; }
-    h1 { margin-bottom: 0; }
-    select, input[type="file"] { margin: 1em 0 0.5em 0; }
-    #hint { margin-bottom: 1em; }
-    #cheats, #nds-cheats { margin: 1em auto; width: 350px; background: #333; border-radius: 8px; padding: 1em; display: none; }
-    #cheats label, #nds-cheats label { font-size: 1em; }
-    #cheats select, #nds-cheats select { width: 200px; }
-    #cheats button, #nds-cheats button { margin-left: 0.5em; }
-    .emu-canvas { display: none; margin: 20px auto; }
-    #nds-canvas { border: 2px solid #444; background: #222; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #181818;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      padding: 1em 0;
+      text-align: center;
+    }
+    iframe {
+      border: none;
+      width: 800px;
+      height: 600px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+      background: #000;
+    }
+    @media (max-width: 820px) {
+      iframe, body {
+        width: 100vw;
+        min-width: 0;
+      }
+      iframe {
+        width: 100vw;
+        height: 60vw;
+        min-height: 340px;
+        max-height: 80vh;
+      }
+    }
   </style>
-  <!-- GameBoy-Online -->
-  <script src="js/GameBoyCore.js"></script>
-  <script src="js/GameBoyIO.js"></script>
-  <!-- jsnes -->
-  <script src="js/jsnes.min.js"></script>
-  <!-- js-ds NDS emulator (browser global build, local) -->
-  <script src="js/nds.js"></script>
 </head>
 <body>
-  <h1>Multi Emulator: NES, Game Boy, NDS (with js-ds)</h1>
-  <label for="consoleSelect">Choose Console:</label>
-  <select id="consoleSelect">
-    <option value="gameboy">Game Boy</option>
-    <option value="nes">NES</option>
-    <option value="nds">Nintendo DS</option>
-  </select>
-  <br>
-  <input type="file" id="romInput" accept=".gb,.nes,.nds">
-  <p id="hint">
-    <b>Instructions:</b><br>
-    1. Select a console and upload your legally-owned ROM.<br>
-    <i>No commercial games included. Use your own ROM files.</i><br>
-    <b>Controls:</b> Keyboard and controller supported.<br>
-    <b>Cheats:</b> Use the menu below after loading a ROM (NES/Game Boy only).
-  </p>
-  <div id="cheats">
-    <label for="cheatSelect">Apply a cheat:</label>
-    <select id="cheatSelect"><option value="">-- Select a Cheat --</option></select>
-    <button id="applyCheatBtn">Apply</button>
-  </div>
-  <div id="nds-cheats">
-    <i>No cheat support for NDS in browser.</i>
-  </div>
-  <canvas id="gameboy-canvas" class="emu-canvas" width="160" height="144"></canvas>
-  <canvas id="nes-canvas" class="emu-canvas" width="256" height="240"></canvas>
-  <canvas id="nds-canvas" class="emu-canvas" width="256" height="384" style="background:#222;"></canvas>
-  <script>
-    // ---- Cheats ----
-    const CHEATS = {
-      nes: {
-        'Super Mario Bros.': [
-          { name: 'Infinite Lives', code: 'SZLIVO' },
-          { name: 'Invincibility (except pits)', code: 'SZNZVZ' }
-        ],
-        'Super Mario Bros. + Duck Hunt': [
-          { name: 'Infinite Lives (Mario)', code: 'SZLIVO' },
-          { name: 'Invincibility (Mario)', code: 'SZNZVZ' }
-        ],
-        'Duck Hunt': [
-          { name: 'Always First Duck', code: 'AENUKTPA' }
-        ]
-      },
-      gameboy: {
-        'Pokémon Red': [
-          { name: 'Infinite Money', code: '019973d5' },
-          { name: 'Walk Through Walls', code: '010138cd' }
-        ]
-      }
-    };
-
-    let currentGameTitle = '';
-    let currentConsole = 'gameboy';
-
-    // --- Game Boy ---
-    let gameboy = null;
-    const gameboyCanvas = document.getElementById('gameboy-canvas');
-
-    // --- NES ---
-    let nes = null;
-    let nesRunning = false;
-    const nesCanvas = document.getElementById('nes-canvas');
-    const nesCtx = nesCanvas.getContext('2d');
-    let nesImageData = nesCtx.getImageData(0, 0, 256, 240);
-
-    // --- NDS (js-ds) ---
-    let nds = null;
-    const ndsCanvas = document.getElementById('nds-canvas');
-
-    const consoleSelect = document.getElementById('consoleSelect');
-    const romInput = document.getElementById('romInput');
-    const hint = document.getElementById('hint');
-    const cheatsDiv = document.getElementById('cheats');
-    const ndsCheatsDiv = document.getElementById('nds-cheats');
-    const cheatSelect = document.getElementById('cheatSelect');
-    const applyCheatBtn = document.getElementById('applyCheatBtn');
-
-    // --- UI helper ---
-    function showConsole(consoleName) {
-      currentConsole = consoleName;
-      gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
-      nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
-      ndsCanvas.style.display = (consoleName === 'nds') ? 'block' : 'none';
-      cheatsDiv.style.display = 'none';
-      ndsCheatsDiv.style.display = (consoleName === 'nds') ? 'block' : 'none';
-      cheatSelect.innerHTML = `<option value="">-- Select a Cheat --</option>`;
-      let accept = ".gb";
-      let instr = `
-        <b>Instructions:</b><br>
-        1. Select "Game Boy" and upload a <code>.gb</code> ROM.<br>
-        <i>No games included. Use your own ROM files.</i>
-        <br><b>Controls:</b> Keyboard and controller supported.
-        <br><b>Cheats:</b> Use the menu below after loading a ROM!
-      `;
-      if (consoleName === 'nes') {
-        accept = ".nes";
-        instr = `
-          <b>Instructions:</b><br>
-          1. Select "NES" and upload a <code>.nes</code> ROM.<br>
-          <i>No games included. Use your own ROM files.</i>
-          <br><b>Controls:</b> Keyboard and controller supported.
-          <br><b>Cheats:</b> Use the menu below after loading a ROM!
-        `;
-      }
-      if (consoleName === 'nds') {
-        accept = ".nds";
-        instr = `
-          <b>Instructions:</b><br>
-          1. Select "Nintendo DS" and upload a <code>.nds</code> ROM.<br>
-          <i>No games included. Use your own ROM files.</i>
-          <br><b>Controls:</b> Keyboard, mouse (for touchscreen), and controller supported.
-          <br><b>Cheats:</b> Not supported in browser NDS emulation.
-        `;
-      }
-      romInput.accept = accept;
-      hint.innerHTML = instr;
-    }
-
-    // --- Game Boy ---
-    function startGameBoyEmulator(romBuffer, romName) {
-      if (gameboy) gameboy.stop();
-      gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
-      gameboy.start();
-      currentGameTitle = detectGameboyTitle(romBuffer, romName);
-      populateCheats();
-    }
-    function detectGameboyTitle(romBuffer, romName) {
-      if (/pokemon.*red/i.test(romName)) return 'Pokémon Red';
-      return '';
-    }
-
-    // --- NES ---
-    function nesOnFrame(frameBuffer) {
-      for (let i = 0; i < frameBuffer.length; i++) {
-        nesImageData.data[i * 4 + 0] = (frameBuffer[i] >> 16) & 0xFF;
-        nesImageData.data[i * 4 + 1] = (frameBuffer[i] >> 8) & 0xFF;
-        nesImageData.data[i * 4 + 2] = frameBuffer[i] & 0xFF;
-        nesImageData.data[i * 4 + 3] = 0xFF;
-      }
-      nesCtx.putImageData(nesImageData, 0, 0);
-    }
-    function startNesEmulator(romBuffer, romName) {
-      stopNesEmulator();
-      nes = new jsnes.NES({ onFrame: nesOnFrame });
-      nes.loadROM(Array.prototype.map.call(romBuffer, x => String.fromCharCode(x)).join(""));
-      nesRunning = true;
-      currentGameTitle = detectNesTitle(romBuffer, romName);
-      populateCheats();
-      requestAnimationFrame(nesLoop);
-    }
-    function stopNesEmulator() {
-      nesRunning = false;
-      nes = null;
-    }
-    function detectNesTitle(romBuffer, romName) {
-      const n = romName.toLowerCase();
-      if (n.includes("mario") && n.includes("duck")) return "Super Mario Bros. + Duck Hunt";
-      if (n.includes("mario")) return "Super Mario Bros.";
-      if (n.includes("duck")) return "Duck Hunt";
-      return '';
-    }
-    // NES keyboard controls
-    const JSNES_CONTROLLER = jsnes.Controller;
-    const NES_KEYMAP = {
-      88: JSNES_CONTROLLER.BUTTON_A,      // X
-      90: JSNES_CONTROLLER.BUTTON_B,      // Z
-      13: JSNES_CONTROLLER.BUTTON_START,  // Enter
-      16: JSNES_CONTROLLER.BUTTON_SELECT, // Shift
-      38: JSNES_CONTROLLER.BUTTON_UP,     // Up
-      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down
-      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left
-      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right
-    };
-    window.addEventListener("keydown", event => {
-      if (!nes) return;
-      const key = NES_KEYMAP[event.keyCode];
-      if (typeof key !== "undefined") {
-        nes.buttonDown(1, key);
-        event.preventDefault();
-      }
-    });
-    window.addEventListener("keyup", event => {
-      if (!nes) return;
-      const key = NES_KEYMAP[event.keyCode];
-      if (typeof key !== "undefined") {
-        nes.buttonUp(1, key);
-        event.preventDefault();
-      }
-    });
-    function nesLoop() {
-      if (!nesRunning || !nes) return;
-      nes.frame();
-      requestAnimationFrame(nesLoop);
-    }
-
-    // --- NDS (js-ds) ---
-    function startNdsEmulator(romBuffer, romName) {
-      if (!window.NDS) {
-        alert('js-ds NDS emulator not loaded!');
-        return;
-      }
-      if (nds && nds.stop) nds.stop();
-      ndsCanvas.style.display = "block";
-      // js-ds expects a File or Blob for ROM
-      const file = new File([romBuffer], romName || "game.nds", {type: "application/octet-stream"});
-      nds = new window.NDS({
-        canvas: ndsCanvas,
-        rom: file,
-        width: 256,
-        height: 384,
-      });
-      // No cheat support in js-ds for browser
-    }
-
-    // --- Cheat logic (NES/Game Boy) ---
-    function populateCheats() {
-      cheatSelect.innerHTML = `<option value="">-- Select a Cheat --</option>`;
-      let cheatOptions = [];
-      if (currentConsole === 'nes') {
-        cheatOptions = CHEATS.nes[currentGameTitle] || [];
-      } else if (currentConsole === 'gameboy') {
-        cheatOptions = CHEATS.gameboy[currentGameTitle] || [];
-      }
-      if (cheatOptions.length > 0) {
-        cheatOptions.forEach(opt => {
-          const el = document.createElement('option');
-          el.value = opt.code;
-          el.textContent = opt.name + ' (' + opt.code + ')';
-          cheatSelect.appendChild(el);
-        });
-        cheatsDiv.style.display = 'block';
-      } else {
-        cheatsDiv.style.display = 'none';
-      }
-    }
-    applyCheatBtn.onclick = function() {
-      const code = cheatSelect.value;
-      if (!code) return;
-      if (currentConsole === 'nes' && nes && typeof nes.setGameGenie === 'function') {
-        nes.setGameGenie([code]);
-        alert('Cheat applied! If nothing happens, try resetting the level or reloading the ROM.');
-      } else if (currentConsole === 'gameboy' && gameboy && typeof gameboy.setCheat === 'function') {
-        gameboy.setCheat(code);
-        alert('Cheat applied! If nothing happens, try reloading the game.');
-      } else {
-        alert('Cheats are not supported in this emulator build.');
-      }
-    };
-
-    // --- File handler / main logic ---
-    romInput.addEventListener('change', function(e){
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function() {
-        const arr = new Uint8Array(reader.result);
-        if (consoleSelect.value === 'gameboy') {
-          startGameBoyEmulator(arr, file.name);
-          stopNesEmulator();
-          ndsCanvas.style.display = "none";
-          if (nds && nds.stop) nds.stop();
-        } else if (consoleSelect.value === 'nes') {
-          startNesEmulator(arr, file.name);
-          if (gameboy) gameboy.stop();
-          ndsCanvas.style.display = "none";
-          if (nds && nds.stop) nds.stop();
-        } else if (consoleSelect.value === 'nds') {
-          if (gameboy) gameboy.stop();
-          stopNesEmulator();
-          startNdsEmulator(arr, file.name);
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    });
-
-    consoleSelect.addEventListener('change', function() {
-      showConsole(consoleSelect.value);
-      if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
-      if (consoleSelect.value !== 'gameboy' && gameboy) gameboy.stop();
-      if (consoleSelect.value !== 'nds') {
-        ndsCanvas.style.display = "none";
-        if (nds && nds.stop) { nds.stop(); nds = null; }
-      }
-    });
-
-    // Initial console setup
-    showConsole('gameboy');
-  </script>
+  <header>
+    <h1>Nintendo DS Emulator</h1>
+    <p>
+      Powered by <a href="https://ds.44670.org" target="_blank" rel="noopener" style="color:#2af;">ds.44670.org</a>
+    </p>
+  </header>
+  <iframe src="https://ds.44670.org/" allowfullscreen></iframe>
 </body>
 </html>
