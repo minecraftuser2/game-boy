@@ -2,70 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Game Boy (GameBoyCore), NES, and DOS (js-dos) Emulator Online</title>
+  <title>Game Boy & NES Emulator Online</title>
   <style>
     body { background: #222; color: #fff; text-align: center; }
-    #gameboy, #nes, #dosbox { display: none; margin: 20px auto; }
+    #gameboy, #nes { display: none; margin: 20px auto; }
     canvas { box-shadow: 0 0 10px #000; }
     label { font-size: 1.2em; }
     #hint { margin-bottom: 1em; }
   </style>
-  <!-- GameBoyCore and GameBoyIO -->
+  <!-- GameBoy-Online core -->
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyCore.js"></script>
   <script src="https://unpkg.com/gameboy-online@2.0.0-beta.2/js/GameBoyIO.js"></script>
   <!-- jsnes NES emulator -->
   <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
-  <!-- js-dos (DOS emulator) -->
-  <script src="https://js-dos.com/6.22/current/js-dos.js"></script>
 </head>
 <body>
-  <h1>Emulator: Game Boy (GameBoyCore), NES, and DOS (js-dos) with Controller Support</h1>
+  <h1>Emulator: Game Boy & NES</h1>
   <label for="consoleSelect">Choose Console:</label>
   <select id="consoleSelect">
     <option value="gameboy">Game Boy</option>
     <option value="nes">NES</option>
-    <option value="dos">DOS (js-dos)</option>
   </select>
   <br>
-  <input type="file" id="romInput" accept=".gb,.nes,.jsdos,.iso">
+  <input type="file" id="romInput" accept=".gb,.nes">
   <p id="hint">
     <b>Instructions:</b><br>
-    - Game Boy: upload <code>.gb</code> ROM.<br>
-    - NES: upload <code>.nes</code> ROM.<br>
-    - DOS (js-dos): upload <code>.jsdos</code> or <code>.iso</code> (mount ISO with <code>IMGMOUNT</code>).<br>
-    <i>No games are included. Please use your own files.</i><br>
-    <b>Game Boy Controls:</b> Z (A), X (B), Enter (Start), Shift (Select), Arrow keys, <strong>or Xbox/USB controller</strong>.<br>
-    <b>NES Controls:</b> Z/X/Enter/Shift/Arrows, <strong>or Xbox/USB controller</strong>.<br>
-    <b>DOS:</b> Mouse and keyboard.
+    1. Select NES and upload your legally-owned NES ROM (<code>.nes</code>).<br>
+    2. Or select Game Boy and upload a <code>.gb</code> ROM.<br>
+    <i>No games are included on this page. Please use your own ROM files.</i>
+    <br>
+    <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
   </p>
   <canvas id="gameboy" width="160" height="144"></canvas>
   <canvas id="nes" width="256" height="240"></canvas>
-  <div id="dosbox" style="width:640px; height:400px;"></div>
   <script>
-    // -------- Game Boy Core + IO -----------
-    let gbcore = null;
-    let gbio = null;
+    // Game Boy setup
+    let gameboy = null;
     const gameboyCanvas = document.getElementById('gameboy');
-
-    function startGameBoyEmulator(romBuffer) {
-      if (gbcore) gbcore.stop();
-      if (gbio) gbio.detach();
-      if (dos) { dos.stop(); dos = null; }
-      stopNesEmulator();
-
-      gbcore = new GameBoyCore(gameboyCanvas, romBuffer);
-      gbio = new GameBoyIO(gbcore, gameboyCanvas);
-      gbcore.start();
-      gbio.attach();
-    }
-
-    // -------- NES (jsnes) -----------
+    // NES setup
     let nes = null;
     let nesRunning = false;
     const nesCanvas = document.getElementById('nes');
     const nesCtx = nesCanvas.getContext('2d');
     let nesImageData = nesCtx.getImageData(0, 0, 256, 240);
 
+    const consoleSelect = document.getElementById('consoleSelect');
+    const romInput = document.getElementById('romInput');
+    const hint = document.getElementById('hint');
+
+    function showConsole(consoleName) {
+      gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
+      nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
+      if (consoleName === 'gameboy') {
+        romInput.accept = ".gb";
+        hint.innerHTML = `
+          <b>Instructions:</b><br>
+          1. Select "Game Boy" and upload a <code>.gb</code> ROM file to start playing.<br>
+          <i>No games are included on this page. Please use your own ROM files.</i>
+          <br>
+          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+        `;
+      } else {
+        romInput.accept = ".nes";
+        hint.innerHTML = `
+          <b>Instructions:</b><br>
+          1. Select "NES" and upload your legally-owned NES ROM (<code>.nes</code>).<br>
+          <i>No games are included on this page. Please use your own ROM files.</i>
+          <br>
+          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller (Xbox, etc.) supported!
+        `;
+      }
+    }
+
+    function startGameBoyEmulator(romBuffer) {
+      if (gameboy) gameboy.stop();
+      gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
+      gameboy.start();
+    }
+
+    // NES rendering and loop
     function nesOnFrame(frameBuffer) {
       for (let i = 0; i < frameBuffer.length; i++) {
         nesImageData.data[i * 4 + 0] = (frameBuffer[i] >> 16) & 0xFF;
@@ -75,96 +90,87 @@
       }
       nesCtx.putImageData(nesImageData, 0, 0);
     }
+
     function startNesEmulator(romBuffer) {
       stopNesEmulator();
-      if (dos) { dos.stop(); dos = null; }
-      if (gbcore) gbcore.stop();
-      if (gbio) gbio.detach();
-      nes = new jsnes.NES({ onFrame: nesOnFrame });
+      nes = new jsnes.NES({
+        onFrame: nesOnFrame
+      });
       nes.loadROM(Array.prototype.map.call(romBuffer, x => String.fromCharCode(x)).join(""));
       nesRunning = true;
       requestAnimationFrame(nesLoop);
     }
-    function stopNesEmulator() { nesRunning = false; nes = null; }
-    function nesLoop() { if (!nesRunning || !nes) return; nes.frame(); requestAnimationFrame(nesLoop); }
 
-    // -------- DOS (js-dos) -----------
-    let dos = null;
-    const dosDiv = document.getElementById('dosbox');
-    let lastIsoFile = null;
-
-    function runDosPrompt() {
-      if (dos) { dos.stop(); dos = null; }
-      if (gbcore) gbcore.stop();
-      if (gbio) gbio.detach();
-      stopNesEmulator();
-      Dos(dosDiv, {
-        wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
-        cycles: 20000,
-        autolock: true
-      }).then(instance => {
-        dos = instance;
-        if (lastIsoFile) {
-          dos.fs.createFile(lastIsoFile.name, new Uint8Array(lastIsoFile.data));
-          setTimeout(() => {
-            dos.keyboardSendText(`IMGMOUNT D ${lastIsoFile.name} -t iso\r\nD:\r\n`);
-          }, 1000);
-        }
-      });
-    }
-    function runDosJsdos(arrayBuffer) {
-      if (dos) { dos.stop(); dos = null; }
-      if (gbcore) gbcore.stop();
-      if (gbio) gbio.detach();
-      stopNesEmulator();
-      Dos(dosDiv, {
-        wdosboxUrl: "https://js-dos.com/6.22/current/wdosbox.js",
-        cycles: 20000,
-        autolock: true
-      }).run(arrayBuffer).then(instance => {
-        dos = instance;
-      });
+    function stopNesEmulator() {
+      nesRunning = false;
+      nes = null;
     }
 
-    // -------- UI Logic -----------
-    const consoleSelect = document.getElementById('consoleSelect');
-    const romInput = document.getElementById('romInput');
-    const hint = document.getElementById('hint');
+    // Keyboard controls for NES
+    const JSNES_CONTROLLER = jsnes.Controller;
+    const NES_KEYMAP = {
+      88: JSNES_CONTROLLER.BUTTON_A,      // X
+      90: JSNES_CONTROLLER.BUTTON_B,      // Z
+      13: JSNES_CONTROLLER.BUTTON_START,  // Enter
+      16: JSNES_CONTROLLER.BUTTON_SELECT, // Shift
+      38: JSNES_CONTROLLER.BUTTON_UP,     // Up arrow
+      40: JSNES_CONTROLLER.BUTTON_DOWN,   // Down arrow
+      37: JSNES_CONTROLLER.BUTTON_LEFT,   // Left arrow
+      39: JSNES_CONTROLLER.BUTTON_RIGHT   // Right arrow
+    };
 
-    function showConsole(consoleName) {
-      gameboyCanvas.style.display = (consoleName === 'gameboy') ? 'block' : 'none';
-      nesCanvas.style.display = (consoleName === 'nes') ? 'block' : 'none';
-      dosDiv.style.display = (consoleName === 'dos') ? 'block' : 'none';
-      if (consoleName === 'gameboy') {
-        romInput.accept = ".gb";
-        hint.innerHTML = `
-          <b>Instructions:</b><br>
-          1. Select "Game Boy" and upload a <code>.gb</code> ROM.<br>
-          <i>No games are included. Please use your own ROM files.</i>
-          <br>
-          <b>Controls:</b> Z (A), X (B), Enter (Start), Shift (Select), Arrow keys, <strong>or Xbox/USB controller</strong>.
-        `;
-      } else if (consoleName === 'nes') {
-        romInput.accept = ".nes";
-        hint.innerHTML = `
-          <b>Instructions:</b><br>
-          1. Select "NES" and upload your <code>.nes</code> ROM.<br>
-          <i>No games are included. Please use your own ROM files.</i>
-          <br>
-          <b>Controls:</b> Keyboard (Z/X/Enter/Shift/Arrows) and controller supported!
-        `;
-      } else if (consoleName === 'dos') {
-        romInput.accept = ".jsdos,.iso";
-        hint.innerHTML = `
-          <b>Instructions:</b><br>
-          1. Select "DOS (js-dos)" for a DOS prompt.<br>
-          2. Upload a <code>.jsdos</code> game/app or a <code>.iso</code> CD image.<br>
-          3. To mount ISO: <code>IMGMOUNT d yourfile.iso -t iso</code> then <code>d:</code><br>
-          <i>Your ISO will be available as D:. No games are included.</i><br>
-          <b>Controls:</b> Mouse and keyboard, just like classic DOS.
-        `;
-        if (!dos || !dosDiv.hasChildNodes()) runDosPrompt();
+    window.addEventListener("keydown", event => {
+      if (!nes) return;
+      const key = NES_KEYMAP[event.keyCode];
+      if (typeof key !== "undefined") {
+        nes.buttonDown(1, key);
+        event.preventDefault();
       }
+    });
+    window.addEventListener("keyup", event => {
+      if (!nes) return;
+      const key = NES_KEYMAP[event.keyCode];
+      if (typeof key !== "undefined") {
+        nes.buttonUp(1, key);
+        event.preventDefault();
+      }
+    });
+
+    // Gamepad state tracking to avoid repeated presses
+    let lastPadState = {};
+
+    function pollGamepad() {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = gamepads[0];
+      if (!gp || !nes) return;
+
+      const mapping = [
+        {btn: 0, ctrl: JSNES_CONTROLLER.BUTTON_A},      // A
+        {btn: 1, ctrl: JSNES_CONTROLLER.BUTTON_B},      // B
+        {btn: 8, ctrl: JSNES_CONTROLLER.BUTTON_SELECT}, // Select
+        {btn: 9, ctrl: JSNES_CONTROLLER.BUTTON_START},  // Start
+        {btn: 12, ctrl: JSNES_CONTROLLER.BUTTON_UP},    // D-Pad Up
+        {btn: 13, ctrl: JSNES_CONTROLLER.BUTTON_DOWN},  // D-Pad Down
+        {btn: 14, ctrl: JSNES_CONTROLLER.BUTTON_LEFT},  // D-Pad Left
+        {btn: 15, ctrl: JSNES_CONTROLLER.BUTTON_RIGHT}  // D-Pad Right
+      ];
+
+      mapping.forEach(map => {
+        const pressed = gp.buttons[map.btn] && gp.buttons[map.btn].pressed;
+        if (pressed && !lastPadState[map.btn]) {
+          nes.buttonDown(1, map.ctrl);
+        } else if (!pressed && lastPadState[map.btn]) {
+          nes.buttonUp(1, map.ctrl);
+        }
+        lastPadState[map.btn] = pressed;
+      });
+    }
+
+    function nesLoop() {
+      if (!nesRunning || !nes) return;
+      nes.frame();
+      pollGamepad();
+      requestAnimationFrame(nesLoop);
     }
 
     // File handling
@@ -175,92 +181,24 @@
       reader.onload = function() {
         const arr = new Uint8Array(reader.result);
         if (consoleSelect.value === 'gameboy') {
-          startGameBoyEmulator(arr); stopNesEmulator(); if (dos) { dos.stop(); dos = null; }
-        } else if (consoleSelect.value === 'nes') {
-          startNesEmulator(arr); if (gbcore) gbcore.stop(); if (gbio) gbio.detach(); if (dos) { dos.stop(); dos = null; }
-        } else if (consoleSelect.value === 'dos') {
-          if (file.name.toLowerCase().endsWith('.jsdos')) {
-            runDosJsdos(reader.result);
-            lastIsoFile = null;
-          } else if (file.name.toLowerCase().endsWith('.iso')) {
-            lastIsoFile = { name: file.name, data: arr };
-            runDosPrompt();
-          }
+          startGameBoyEmulator(arr);
+          stopNesEmulator();
+        } else {
+          startNesEmulator(arr);
+          if (gameboy) gameboy.stop();
         }
       };
       reader.readAsArrayBuffer(file);
     });
 
-    // Switch emulator
     consoleSelect.addEventListener('change', function() {
       showConsole(consoleSelect.value);
-      if (consoleSelect.value !== 'gameboy' && gbcore) { gbcore.stop(); }
-      if (consoleSelect.value !== 'gameboy' && gbio) { gbio.detach(); }
-      if (consoleSelect.value !== 'nes') stopNesEmulator();
-      if (consoleSelect.value !== 'dos' && dos) { dos.stop(); dos = null; }
-      lastIsoFile = null;
+      // Stop both emulators when switching
+      if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
+      if (consoleSelect.value === 'nes' && gameboy) gameboy.stop();
     });
 
-    // -------- Gamepad/Controller Support --------
-    // Game Boy mapping (standard Xbox layout)
-    const gameBoyPadMap = {
-      12: 'up',    // D-Pad Up
-      13: 'down',  // D-Pad Down
-      14: 'left',  // D-Pad Left
-      15: 'right', // D-Pad Right
-      0: 'b',      // A button (bottom)
-      1: 'a',      // B button (right)
-      8: 'select', // Select (View)
-      9: 'start'   // Start (Menu)
-    };
-
-    // NES mapping (standard Xbox layout)
-    const nesPadMap = {
-      12: 'UP',    // D-Pad Up
-      13: 'DOWN',  // D-Pad Down
-      14: 'LEFT',  // D-Pad Left
-      15: 'RIGHT', // D-Pad Right
-      0: 'A',      // A button (bottom)
-      1: 'B',      // B button (right)
-      8: 'SELECT', // Select (View)
-      9: 'START'   // Start (Menu)
-    };
-
-    // Gamepad polling loop
-    let prevGamepadState = {};
-    function pollGamepads() {
-      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-      for (let i = 0; i < pads.length; ++i) {
-        const pad = pads[i];
-        if (!pad) continue;
-        if (consoleSelect.value === 'gameboy' && gbcore) {
-          for (const [buttonIdx, gbBtn] of Object.entries(gameBoyPadMap)) {
-            const pressed = pad.buttons[buttonIdx] && pad.buttons[buttonIdx].pressed;
-            if (!prevGamepadState[`gb_${buttonIdx}`] && pressed) {
-              gbcore.JoyPadEvent(gbBtn, true);
-            } else if (prevGamepadState[`gb_${buttonIdx}`] && !pressed) {
-              gbcore.JoyPadEvent(gbBtn, false);
-            }
-            prevGamepadState[`gb_${buttonIdx}`] = pressed;
-          }
-        }
-        if (consoleSelect.value === 'nes' && nes) {
-          for (const [buttonIdx, nesBtn] of Object.entries(nesPadMap)) {
-            const pressed = pad.buttons[buttonIdx] && pad.buttons[buttonIdx].pressed;
-            if (!prevGamepadState[`nes_${buttonIdx}`] && pressed) {
-              nes.buttonDown(1, nesBtn);
-            } else if (prevGamepadState[`nes_${buttonIdx}`] && !pressed) {
-              nes.buttonUp(1, nesBtn);
-            }
-            prevGamepadState[`nes_${buttonIdx}`] = pressed;
-          }
-        }
-      }
-      requestAnimationFrame(pollGamepads);
-    }
-    pollGamepads();
-
-    // Initial setup
+    // Initial console setup
     showConsole('gameboy');
   </script>
 </body>
