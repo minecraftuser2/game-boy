@@ -108,7 +108,7 @@ function GameBoyCore(canvas, ROMImage) {
 	this.highY = 127;
 	this.lowY = 127;
 	//Sound variables:
-	this.audioHandle = null;						//XAudioJS handle
+	Handle = null;						//XAudioJS handle
 	this.numSamplesTotal = 0;						//Length of the sound buffers.
 	this.dutyLookup = [								//Map the duty values given to ones we can work with.
 		[false, false, false, false, false, false, false, true],
@@ -135,8 +135,8 @@ function GameBoyCore(canvas, ROMImage) {
 	this.rightChannel2 = false;
 	this.rightChannel3 = false;
 	this.rightChannel4 = false;
-	this.audioClocksUntilNextEvent = 1;
-	this.audioClocksUntilNextEventCounter = 1;
+	ClocksUntilNextEvent = 1;
+	ClocksUntilNextEventCounter = 1;
 	//Channel output level caches:
 	this.channel1currentSampleLeft = 0;
 	this.channel1currentSampleRight = 0;
@@ -163,10 +163,10 @@ function GameBoyCore(canvas, ROMImage) {
 	this.emulatorSpeed = 1;
 	this.initializeTiming();
 	//Audio generation counters:
-	this.audioTicks = 0;				//Used to sample the audio system every x CPU instructions.
-	this.audioIndex = 0;				//Used to keep alignment on audio generation.
+	Ticks = 0;				//Used to sample the audio system every x CPU instructions.
+	Index = 0;				//Used to keep alignment on audio generation.
 	this.downsampleInput = 0;
-	this.audioDestinationPosition = 0;	//Used to keep alignment on audio generation.
+	DestinationPosition = 0;	//Used to keep alignment on audio generation.
 	this.rollover = 0;					//Used to keep alignment on the number of samples to output (Realign from counter alias).
 	//Timing Variables
 	this.emulatorTicks = 0;				//Times for how many instructions to execute before ending the loop.
@@ -4157,8 +4157,7 @@ GameBoyCore.prototype.saveState = function () {
 		this.backgroundY,
 		this.backgroundX,
 		this.CPUStopped,
-		this.audioClocksUntilNextEvent,
-		this.audioClocksUntilNextEventCounter
+		
 	];
 }
 GameBoyCore.prototype.returnFromState = function (returnedFrom) {
@@ -4371,8 +4370,8 @@ GameBoyCore.prototype.returnFromState = function (returnedFrom) {
 	this.backgroundY = state[index++];
 	this.backgroundX = state[index++];
 	this.CPUStopped = state[index++];
-	this.audioClocksUntilNextEvent = state[index++];
-	this.audioClocksUntilNextEventCounter = state[index];
+	ClocksUntilNextEvent = state[index++];
+	ClocksUntilNextEventCounter = state[index];
 	this.fromSaveState = true;
 	this.TICKTable = this.toTypedArray(this.TICKTable, "uint8");
 	this.SecondaryTICKTable = this.toTypedArray(this.SecondaryTICKTable, "uint8");
@@ -4931,7 +4930,7 @@ GameBoyCore.prototype.initializeTiming = function () {
 GameBoyCore.prototype.setSpeed = function (speed) {
 	this.emulatorSpeed = speed;
 	this.initializeTiming();
-	if (this.audioHandle) {
+	if (Handle) {
 		this.initSound();
 	}
 }
@@ -5081,31 +5080,31 @@ GameBoyCore.prototype.GyroEvent = function (x, y) {
 	this.highY = y >> 8;
 	this.lowY = y & 0xFF;
 }
-	this.audioResamplerFirstPassFactor = Math.max(Math.min(Math.floor(this.clocksPerSecond / 44100), Math.floor(0xFFFF / 0x1E0)), 1);
-	this.downSampleInputDivider = 1 / (this.audioResamplerFirstPassFactor * 0xF0);
+	ResamplerFirstPassFactor = Math.max(Math.min(Math.floor(this.clocksPerSecond / 44100), Math.floor(0xFFFF / 0x1E0)), 1);
+	this.downSampleInputDivider = 1 / (ResamplerFirstPassFactor * 0xF0);
 	if (settings[0]) {
-		this.audioHandle = new XAudioServer(2, this.clocksPerSecond / this.audioResamplerFirstPassFactor, 0, Math.max(this.baseCPUCyclesPerIteration * settings[8] / this.audioResamplerFirstPassFactor, 8192) << 1, null, settings[3], function () {
+		Handle = new XAudioServer(2, this.clocksPerSecond / ResamplerFirstPassFactor, 0, Math.max(this.baseCPUCyclesPerIteration * settings[8] / ResamplerFirstPassFactor, 8192) << 1, null, settings[3], function () {
 			settings[0] = false;
 		});
 		this.initAudioBuffer();
 	}
-	else if (this.audioHandle) {
+	else if (Handle) {
 		//Mute the audio output, as it has an immediate silencing effect:
-		this.audioHandle.changeVolume(0);
+		Handle.changeVolume(0);
 	}
 }
 GameBoyCore.prototype.changeVolume = function () {
-	if (settings[0] && this.audioHandle) {
-		this.audioHandle.changeVolume(settings[3]);
+	if (settings[0] && Handle) {
+		Handle.changeVolume(settings[3]);
 	}
 }
 GameBoyCore.prototype.initAudioBuffer = function () {
-	this.audioIndex = 0;
-	this.audioDestinationPosition = 0;
+	Index = 0;
+	DestinationPosition = 0;
 	this.downsampleInput = 0;
-	this.bufferContainAmount = Math.max(this.baseCPUCyclesPerIteration * settings[7] / this.audioResamplerFirstPassFactor, 4096) << 1;
-	this.numSamplesTotal = (this.baseCPUCyclesPerIteration / this.audioResamplerFirstPassFactor) << 1;
-	this.audioBuffer = this.getTypedArray(this.numSamplesTotal, 0, "float32");
+	this.bufferContainAmount = Math.max(this.baseCPUCyclesPerIteration * settings[7] / ResamplerFirstPassFactor, 4096) << 1;
+	this.numSamplesTotal = (this.baseCPUCyclesPerIteration / ResamplerFirstPassFactor) << 1;
+	Buffer = this.getTypedArray(this.numSamplesTotal, 0, "float32");
 }
 GameBoyCore.prototype.intializeWhiteNoise = function () {
 	//Noise Sample Tables:
@@ -5168,11 +5167,11 @@ GameBoyCore.prototype.intializeWhiteNoise = function () {
 }
 GameBoyCore.prototype.audioUnderrunAdjustment = function () {
 	if (settings[0]) {
-		var underrunAmount = this.audioHandle.remainingBuffer();
+		var underrunAmount = Handle.remainingBuffer();
 		if (typeof underrunAmount == "number") {
 			underrunAmount = this.bufferContainAmount - Math.max(underrunAmount, 0);
 			if (underrunAmount > 0) {
-				this.recalculateIterationClockLimitForAudio((underrunAmount >> 1) * this.audioResamplerFirstPassFactor);
+				this.recalculateIterationClockLimitForAudio((underrunAmount >> 1) * ResamplerFirstPassFactor);
 			}
 		}
 	}
@@ -5244,8 +5243,8 @@ GameBoyCore.prototype.initializeAudioStartState = function () {
 	this.channel1canPlay = false;
 	this.channel2canPlay = false;
 	this.channel4canPlay = false;
-	this.audioClocksUntilNextEvent = 1;
-	this.audioClocksUntilNextEventCounter = 1;
+	ClocksUntilNextEvent = 1;
+	ClocksUntilNextEventCounter = 1;
 	this.channel1OutputLevelCache();
 	this.channel2OutputLevelCache();
 	this.channel3OutputLevelCache();
@@ -5253,11 +5252,11 @@ GameBoyCore.prototype.initializeAudioStartState = function () {
 	this.noiseSampleTable = this.LSFR15Table;
 }
 GameBoyCore.prototype.outputAudio = function () {
-	this.audioBuffer[this.audioDestinationPosition++] = (this.downsampleInput >>> 16) * this.downSampleInputDivider - 1;
-	this.audioBuffer[this.audioDestinationPosition++] = (this.downsampleInput & 0xFFFF) * this.downSampleInputDivider - 1;
-	if (this.audioDestinationPosition == this.numSamplesTotal) {
-		this.audioHandle.writeAudioNoCallback(this.audioBuffer);
-		this.audioDestinationPosition = 0;
+	Buffer[DestinationPosition++] = (this.downsampleInput >>> 16) * this.downSampleInputDivider - 1;
+	Buffer[DestinationPosition++] = (this.downsampleInput & 0xFFFF) * this.downSampleInputDivider - 1;
+	if (DestinationPosition == this.numSamplesTotal) {
+		Handle.writeAudioNoCallback(Buffer);
+		DestinationPosition = 0;
 	}
 	this.downsampleInput = 0;
 }
@@ -5266,25 +5265,25 @@ GameBoyCore.prototype.generateAudio = function (numSamples) {
 	var multiplier = 0;
 	if (this.soundMasterEnabled && !this.CPUStopped) {
 		for (var clockUpTo = 0; numSamples > 0;) {
-			clockUpTo = Math.min(this.audioClocksUntilNextEventCounter, this.sequencerClocks, numSamples);
-			this.audioClocksUntilNextEventCounter -= clockUpTo;
+			clockUpTo = Math.min(ClocksUntilNextEventCounter, this.sequencerClocks, numSamples);
+			ClocksUntilNextEventCounter -= clockUpTo;
 			this.sequencerClocks -= clockUpTo;
 			numSamples -= clockUpTo;
 			while (clockUpTo > 0) {
-				multiplier = Math.min(clockUpTo, this.audioResamplerFirstPassFactor - this.audioIndex);
+				multiplier = Math.min(clockUpTo, ResamplerFirstPassFactor - Index);
 				clockUpTo -= multiplier;
-				this.audioIndex += multiplier;
+				Index += multiplier;
 				this.downsampleInput += this.mixerOutputCache * multiplier;
-				if (this.audioIndex == this.audioResamplerFirstPassFactor) {
-					this.audioIndex = 0;
+				if (Index == ResamplerFirstPassFactor) {
+					Index = 0;
 					this.outputAudio();
 				}
 			}
 			if (this.sequencerClocks == 0) {
-				this.audioComputeSequencer();
+				ComputeSequencer();
 				this.sequencerClocks = 0x2000;
 			}
-			if (this.audioClocksUntilNextEventCounter == 0) {
+			if (ClocksUntilNextEventCounter == 0) {
 				this.computeAudioChannels();
 			}
 		}
@@ -5292,11 +5291,11 @@ GameBoyCore.prototype.generateAudio = function (numSamples) {
 	else {
 		//SILENT OUTPUT:
 		while (numSamples > 0) {
-			multiplier = Math.min(numSamples, this.audioResamplerFirstPassFactor - this.audioIndex);
+			multiplier = Math.min(numSamples, ResamplerFirstPassFactor - Index);
 			numSamples -= multiplier;
-			this.audioIndex += multiplier;
-			if (this.audioIndex == this.audioResamplerFirstPassFactor) {
-				this.audioIndex = 0;
+			Index += multiplier;
+			if (Index == ResamplerFirstPassFactor) {
+				Index = 0;
 				this.outputAudio();
 			}
 		}
@@ -5306,15 +5305,15 @@ GameBoyCore.prototype.generateAudio = function (numSamples) {
 GameBoyCore.prototype.generateAudioFake = function (numSamples) {
 	if (this.soundMasterEnabled && !this.CPUStopped) {
 		for (var clockUpTo = 0; numSamples > 0;) {
-			clockUpTo = Math.min(this.audioClocksUntilNextEventCounter, this.sequencerClocks, numSamples);
-			this.audioClocksUntilNextEventCounter -= clockUpTo;
+			clockUpTo = Math.min(ClocksUntilNextEventCounter, this.sequencerClocks, numSamples);
+			ClocksUntilNextEventCounter -= clockUpTo;
 			this.sequencerClocks -= clockUpTo;
 			numSamples -= clockUpTo;
 			if (this.sequencerClocks == 0) {
-				this.audioComputeSequencer();
+				ComputeSequencer();
 				this.sequencerClocks = 0x2000;
 			}
-			if (this.audioClocksUntilNextEventCounter == 0) {
+			if (ClocksUntilNextEventCounter == 0) {
 				this.computeAudioChannels();
 			}
 		}
@@ -5323,12 +5322,12 @@ GameBoyCore.prototype.generateAudioFake = function (numSamples) {
 GameBoyCore.prototype.audioJIT = function () {
 	//Audio Sample Generation Timing:
 	if (settings[0]) {
-		this.generateAudio(this.audioTicks);
+		this.generateAudio(Ticks);
 	}
 	else {
-		this.generateAudioFake(this.audioTicks);
+		this.generateAudioFake(Ticks);
 	}
-	this.audioTicks = 0;
+	Ticks = 0;
 }
 GameBoyCore.prototype.audioComputeSequencer = function () {
 	switch (this.sequencePosition++) {
@@ -5538,10 +5537,10 @@ GameBoyCore.prototype.clockAudioEnvelope = function () {
 }
 GameBoyCore.prototype.computeAudioChannels = function () {
 	//Clock down the four audio channels to the next closest audio event:
-	this.channel1FrequencyCounter -= this.audioClocksUntilNextEvent;
-	this.channel2FrequencyCounter -= this.audioClocksUntilNextEvent;
-	this.channel3Counter -= this.audioClocksUntilNextEvent;
-	this.channel4Counter -= this.audioClocksUntilNextEvent;
+	this.channel1FrequencyCounter -= ClocksUntilNextEvent;
+	this.channel2FrequencyCounter -= ClocksUntilNextEvent;
+	this.channel3Counter -= ClocksUntilNextEvent;
+	this.channel4Counter -= ClocksUntilNextEvent;
 	//Channel 1 counter:
 	if (this.channel1FrequencyCounter == 0) {
 		this.channel1FrequencyCounter = this.channel1FrequencyTracker;
@@ -5569,7 +5568,7 @@ GameBoyCore.prototype.computeAudioChannels = function () {
 		this.channel4UpdateCache();
 	}
 	//Find the number of clocks to next closest counter event:
-	this.audioClocksUntilNextEventCounter = this.audioClocksUntilNextEvent = Math.min(this.channel1FrequencyCounter, this.channel2FrequencyCounter, this.channel3Counter, this.channel4Counter);
+	ClocksUntilNextEventCounter = ClocksUntilNextEvent = Math.min(this.channel1FrequencyCounter, this.channel2FrequencyCounter, this.channel3Counter, this.channel4Counter);
 }
 GameBoyCore.prototype.channel1EnableCheck = function () {
 	this.channel1Enabled = ((this.channel1consecutive || this.channel1totalLength > 0) && !this.channel1SweepFault && this.channel1canPlay);
@@ -5698,7 +5697,7 @@ GameBoyCore.prototype.channel3UpdateCache = function () {
 }
 GameBoyCore.prototype.channel3WriteRAM = function (address, data) {
 	if (this.channel3canPlay) {
-		this.audioJIT();
+		JIT();
 		//address = this.channel3lastSampleLookup >> 1;
 	}
 	this.memory[0xFF30 | address] = data;
@@ -5716,7 +5715,7 @@ GameBoyCore.prototype.run = function () {
 		if ((this.stopEmulator & 1) == 1) {
 			if (!this.CPUStopped) {
 				this.stopEmulator = 0;
-				this.audioUnderrunAdjustment();
+				UnderrunAdjustment();
 				this.clockUpdate();			//RTC clocking.
 				if (!this.halt) {
 					this.executeIteration();
@@ -5736,9 +5735,9 @@ GameBoyCore.prototype.run = function () {
 				this.requestDraw();
 			}
 			else {
-				this.audioUnderrunAdjustment();
-				this.audioTicks += this.CPUCyclesTotal;
-				this.audioJIT();
+				UnderrunAdjustment();
+				Ticks += this.CPUCyclesTotal;
+				JIT();
 				this.stopEmulator |= 1;			//End current loop.
 			}
 		}
@@ -5785,7 +5784,7 @@ GameBoyCore.prototype.executeIteration = function () {
 		this.LCDCONTROL[this.actualScanLine](this);					//Scan Line and STAT Mode Control
 		//Single-speed relative timing for A/V emulation:
 		timedTicks = this.CPUTicks >> this.doubleSpeedShifter;		//CPU clocking can be updated from the LCD handling.
-		this.audioTicks += timedTicks;								//Audio Timing
+		Ticks += timedTicks;								//Audio Timing
 		this.emulatorTicks += timedTicks;							//Emulator Timing
 		//CPU Timers:
 		this.DIVTicks += this.CPUTicks;								//DIV Timing
@@ -5822,7 +5821,7 @@ GameBoyCore.prototype.executeIteration = function () {
 }
 GameBoyCore.prototype.iterationEndRoutine = function () {
 	if ((this.stopEmulator & 0x1) == 0) {
-		this.audioJIT();	//Make sure we at least output once per iteration.
+		JIT();	//Make sure we at least output once per iteration.
 		//Update DIV Alignment (Integer overflow safety):
 		this.memory[0xFF04] = (this.memory[0xFF04] + (this.DIVTicks >> 8)) & 0xFF;
 		this.DIVTicks &= 0xFF;
@@ -5837,8 +5836,8 @@ GameBoyCore.prototype.handleSTOP = function () {
 	this.CPUStopped = true;						//Stop CPU until joypad input changes.
 	this.iterationEndRoutine();
 	if (this.emulatorTicks < 0) {
-		this.audioTicks -= this.emulatorTicks;
-		this.audioJIT();
+		Ticks -= this.emulatorTicks;
+		JIT();
 	}
 }
 GameBoyCore.prototype.recalculateIterationClockLimit = function () {
@@ -5955,7 +5954,7 @@ GameBoyCore.prototype.updateCore = function () {
 	this.LCDCONTROL[this.actualScanLine](this);					//Scan Line and STAT Mode Control
 	//Single-speed relative timing for A/V emulation:
 	var timedTicks = this.CPUTicks >> this.doubleSpeedShifter;	//CPU clocking can be updated from the LCD handling.
-	this.audioTicks += timedTicks;								//Audio Timing
+	Ticks += timedTicks;								//Audio Timing
 	this.emulatorTicks += timedTicks;							//Emulator Timing
 	//CPU Timers:
 	this.DIVTicks += this.CPUTicks;								//DIV Timing
