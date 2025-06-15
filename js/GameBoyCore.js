@@ -5080,12 +5080,6 @@ GameBoyCore.prototype.GyroEvent = function (x, y) {
 	y += 2047;
 	this.highY = y >> 8;
 	this.lowY = y & 0xFF;
-}// function GameBoyCore.prototype.initSound() {
-GameBoyCore.prototype.initSound = function() {
-    // Disable audio by simply not creating XAudioServer
-    // this.audio = new XAudioServer(...);
-    this.audio = null; // Or leave it undefined
-    // Optionally add: console.log("Audio disabled.");
 }
 	this.audioResamplerFirstPassFactor = Math.max(Math.min(Math.floor(this.clocksPerSecond / 44100), Math.floor(0xFFFF / 0x1E0)), 1);
 	this.downSampleInputDivider = 1 / (this.audioResamplerFirstPassFactor * 0xF0);
