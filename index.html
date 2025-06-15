@@ -27,7 +27,7 @@
   </style>
   <!-- GameBoy-Online core -->
   <script src="js/GameBoyCore.js"></script>
-<script src="js/GameBoyIO.js"></script>
+  <script src="js/GameBoyIO.js"></script>
   <!-- jsnes NES emulator -->
   <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
 </head>
@@ -54,6 +54,7 @@
   <script>
     // Game Boy setup
     let gameboy = null;
+    let gbio = null; // <--- ADD THIS LINE
     const gameboyCanvas = document.getElementById('gameboy');
     // NES setup
     let nes = null;
@@ -94,8 +95,11 @@
 
     function startGameBoyEmulator(romBuffer) {
       if (gameboy) gameboy.stop();
+      if (gbio) gbio.detach();
       gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
+      gbio = new GameBoyIO(gameboy, gameboyCanvas);
       gameboy.start();
+      gbio.attach();
     }
 
     // NES rendering and loop
@@ -204,6 +208,7 @@
         } else {
           startNesEmulator(arr);
           if (gameboy) gameboy.stop();
+          if (gbio) gbio.detach();
         }
       };
       reader.readAsArrayBuffer(file);
@@ -213,7 +218,10 @@
       showConsole(consoleSelect.value);
       // Stop both emulators when switching
       if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
-      if (consoleSelect.value === 'nes' && gameboy) gameboy.stop();
+      if (consoleSelect.value === 'nes' && gameboy) {
+        gameboy.stop();
+        if (gbio) gbio.detach();
+      }
     });
 
     // Fullscreen logic
@@ -255,18 +263,13 @@
     });
 
     // Optionally update button text depending on fullscreen state
-    document.addEventListener('fullscreenchange', function() {
+    function updateFullscreenButton() {
       fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
-    });
-    document.addEventListener('webkitfullscreenchange', function() {
-      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
-    });
-    document.addEventListener('mozfullscreenchange', function() {
-      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
-    });
-    document.addEventListener('MSFullscreenChange', function() {
-      fullscreenBtn.textContent = isFullscreen() ? 'Exit Fullscreen' : 'Fullscreen';
-    });
+    }
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+    document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+    document.addEventListener('MSFullscreenChange', updateFullscreenButton);
 
     // Initial console setup
     showConsole('gameboy');
