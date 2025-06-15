@@ -54,7 +54,7 @@
   <script>
     // Game Boy setup
     let gameboy = null;
-    let gbio = null; // <--- ADD THIS LINE
+    let gbio = null;
     const gameboyCanvas = document.getElementById('gameboy');
     // NES setup
     let nes = null;
@@ -158,7 +158,7 @@
       }
     });
 
-    // Gamepad state tracking to avoid repeated presses
+    // Gamepad state tracking for NES
     let lastPadState = {};
 
     function pollGamepad() {
