@@ -94,12 +94,14 @@
     }
 
     function startGameBoyEmulator(romBuffer) {
-      if (gameboy) gameboy.stop();
-      if (gbio) gbio.detach();
+      if (gameboy && typeof gameboy.stop === "function") gameboy.stop();
+      if (gbio && typeof gbio.detach === "function") gbio.detach();
       gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
-      gbio = new GameBoyIO(gameboy, gameboyCanvas);
+      if (typeof GameBoyIO === "function") {
+        gbio = new GameBoyIO(gameboy, gameboyCanvas);
+        gbio.attach();
+      }
       gameboy.start();
-      gbio.attach();
     }
 
     // NES rendering and loop
@@ -207,8 +209,8 @@
           stopNesEmulator();
         } else {
           startNesEmulator(arr);
-          if (gameboy) gameboy.stop();
-          if (gbio) gbio.detach();
+          if (gameboy && typeof gameboy.stop === "function") gameboy.stop();
+          if (gbio && typeof gbio.detach === "function") gbio.detach();
         }
       };
       reader.readAsArrayBuffer(file);
@@ -219,8 +221,8 @@
       // Stop both emulators when switching
       if (consoleSelect.value === 'gameboy' && nes) stopNesEmulator();
       if (consoleSelect.value === 'nes' && gameboy) {
-        gameboy.stop();
-        if (gbio) gbio.detach();
+        if (typeof gameboy.stop === "function") gameboy.stop();
+        if (gbio && typeof gbio.detach === "function") gbio.detach();
       }
     });
 
