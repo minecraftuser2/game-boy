@@ -93,10 +93,10 @@
       }
     }
 
-    function startGameBoyEmulator(romBuffer) {
+    function startGameBoyEmulator(romString) {
       if (gameboy && typeof gameboy.stop === "function") gameboy.stop();
       if (gbio && typeof gbio.detach === "function") gbio.detach();
-      gameboy = new GameBoyCore(gameboyCanvas, romBuffer);
+      gameboy = new GameBoyCore(gameboyCanvas, romString);
       if (typeof GameBoyIO === "function") {
         gbio = new GameBoyIO(gameboy, gameboyCanvas);
         gbio.attach();
@@ -203,15 +203,17 @@
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function() {
-       // Convert ArrayBuffer to string for Game Boy ROM
-const byteArray = new Uint8Array(reader.result);
-let romString = "";
-for (let i = 0; i < byteArray.length; i++) {
-  romString += String.fromCharCode(byteArray[i]);
-}
-startGameBoyEmulator(romString);
+        if (consoleSelect.value === 'gameboy') {
+          // Convert ArrayBuffer to string for Game Boy ROM
+          const byteArray = new Uint8Array(reader.result);
+          let romString = "";
+          for (let i = 0; i < byteArray.length; i++) {
+            romString += String.fromCharCode(byteArray[i]);
+          }
+          startGameBoyEmulator(romString);
           stopNesEmulator();
         } else {
+          const arr = new Uint8Array(reader.result);
           startNesEmulator(arr);
           if (gameboy && typeof gameboy.stop === "function") gameboy.stop();
           if (gbio && typeof gbio.detach === "function") gbio.detach();
