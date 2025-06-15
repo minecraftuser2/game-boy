@@ -4379,7 +4379,7 @@ GameBoyCore.prototype.returnFromState = function (returnedFrom) {
 	this.memoryReadJumpCompile();
 	this.memoryWriteJumpCompile();
 	this.initLCD();
-	this.initSound();
+	GameBoyCore.prototype.initSound = function() {     // Audio disabled }();
 	this.noiseSampleTable = (this.channel4BitRange == 0x7FFF) ? this.LSFR15Table : this.LSFR7Table;
 	this.channel4VolumeShifter = (this.channel4BitRange == 0x7FFF) ? 15 : 7;
 }
@@ -4406,7 +4406,7 @@ GameBoyCore.prototype.start = function () {
 	this.initMemory();	//Write the startup memory.
 	this.ROMLoad();		//Load the ROM into memory and get cartridge information from it.
 	this.initLCD();		//Initialize the graphics.
-	this.initSound();	//Sound object initialization.
+	GameBoyCore.prototype.initSound = function() {     // Audio disabled }();	//Sound object initialization.
 	this.run();			//Start the emulation.
 }
 GameBoyCore.prototype.initMemory = function () {
@@ -4931,7 +4931,7 @@ GameBoyCore.prototype.setSpeed = function (speed) {
 	this.emulatorSpeed = speed;
 	this.initializeTiming();
 	if (Handle) {
-		this.initSound();
+		GameBoyCore.prototype.initSound = function() {     // Audio disabled }();
 	}
 }
 GameBoyCore.prototype.setupRAM = function () {
